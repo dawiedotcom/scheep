@@ -4,38 +4,91 @@
 ;;;; Forward declarations
 
 (declare scheme-eval
-         scheme-apply)
+         scheme-apply
+         set-variable-value!
+         define-variable!
+         scheme-true?
+         make-compound-procedure)
+         
+;;;; A map of eval function for scheme special forms
+
+(def ^:dynamic *evals* (ref {}))
+
+(defn get-form-symbol [exp] (keyword (first exp)))
+
+(defn get-eval [exp]
+  ((get-form-symbol exp) @*evals*))
+
+(defn has-eval? [exp]
+  (contains? @*evals* (get-form-symbol exp)))
+
+(defn register-eval [symbol function]
+  (dosync
+   (alter *evals* #(assoc % symbol function))))
 
 ;;;; Expression Types ;;;;
 
-(defmacro defexpression [[exp-symbol & selectors]]
-  (defn defselector [selector-symbol pos]
-    `(~'defn ~selector-symbol [~(conj pos 's)] ~'s))
-  ;(println (str "defexpression: " exp-symbol selectors))
-  `(do
-     (~'defn ~(symbol (str exp-symbol "?")) [~'exp]
-       (tagged-list? ~'exp (quote ~exp-symbol)))
-     ~@(loop [[s & ss] selectors
-              acc '()
-              underscores '[_]]
-         (cond
-          (nil? s) acc
-          (= s '&) (conj acc
-                         (defselector (first ss) (conj underscores '&)))
-          :else (recur ss
-                       (conj acc (defselector s underscores))
-                       (conj underscores '_))))))
+(defn gen-selector [selector-symbol pos]
+  ;; A clojure syntax function to define a selector using
+  ;; destructuring
+  `(~'defn ~selector-symbol [~(conj pos 's)] ~'s))
+
+(defn gen-call-to-register-eval [symbol eval-fn]
+  ;; A clojure syntax function to register the given eval
+  ;; function in the map of evals
+  `(register-eval ~(keyword symbol) ~eval-fn))
 
 (defn tagged-list? [exp tag]
   (if (list? exp)
       (= (first exp) tag)
       false))
 
+(defmacro defexpression
+  "Defines predicates, selectors and evals for a scheme  
+   special form.
+
+   The call
+     (defexpression :syntax (begin & begin-actions)
+                    :eval (fn [exp env] ... ))
+   will define the following functions:
+    1) a predicate begin? to test if a scheme expression
+       is the begin special form
+    2) a selector begin-actions to get a list of the
+       expressions inside begin.
+
+   The value of :eval is an optional function that will
+   be used automatically by scheme-eval to interpret the
+   special form."
+  [& args]
+  (let [{[exp-symbol & selectors] :syntax
+         eval-fn :eval} args]
+    `(do
+       ;; The predicate
+       (~'defn ~(symbol (str exp-symbol "?")) [~'exp]
+         (tagged-list? ~'exp (quote ~exp-symbol)))
+       ;; Each of the selectors
+       ~@(loop [[s & ss] selectors
+                acc '()
+                underscores '[_]]
+           (cond
+            (nil? s) acc
+            (= s '&) (conj acc
+                           ; Special case for & to select a list of all the
+                           ; last forms
+                           (gen-selector (first ss) (conj underscores '&)))
+            :else (recur ss
+                         (conj acc (gen-selector s underscores))
+                         (conj underscores '_))))
+       ;; Register the eval if one was given
+       ~(if eval-fn (gen-call-to-register-eval exp-symbol eval-fn)))))
+
 ;;;; Self evaluating expressions
 
 (defn self-evaluating? [exp]
   (or (string? exp)
-      (number? exp)))
+      (number? exp)
+      (= true exp)
+      (= false exp)))
 
 ;;;; Variables
 
@@ -45,37 +98,74 @@
       (= exp false)))
 
 ;;;; Quotes
-(defexpression (quote text-of-quotation))
+(defexpression :syntax (quote text-of-quotation))
   
 ;;; Assignment
-(defexpression (set! assignment-variable assignment-value))
-(def assignment? set!?)
-
+(defexpression
+  :syntax (set! assignment-variable assignment-value)
+  :eval (fn [exp env]
+          (set-variable-value!
+           env
+           (assignment-variable exp)
+           (scheme-eval (assignment-value exp) env))
+          'ok))
+  
 ;;;; Definitions
-(defexpression (define definition-variable definition-value))
-(def definition? define?)
+(defexpression
+  :syntax (define definition-variable definition-value)
+  :eval (fn [exp env]
+          (define-variable!
+            env
+            (definition-variable exp)
+            (scheme-eval (definition-value exp) env))
+          (definition-variable exp)))
 
 ;;;; Conditionals
-(defexpression (if if-predicate if-consequent if-alternative))
+(defexpression
+  :syntax (if if-predicate if-consequent if-alternative)
+  :eval (fn [exp env]
+          (if (scheme-true? (scheme-eval (if-predicate exp) env))
+            (scheme-eval (if-consequent exp) env)
+            (scheme-eval (if-alternative exp) env))))
 
 (defn make-if [predicate consequent alternative]
   (list 'if predicate consequent alternative))
 
 ;;;; Lambda expressions
-(defexpression (lambda lambda-parameters & lambda-body))
+(defexpression
+  :syntax (lambda lambda-parameters & lambda-body)
+  :eval (fn [exp env]
+          (make-compound-procedure
+           (lambda-parameters exp)
+           (lambda-body exp)
+           env)))
 
 (defn make-lambda [params body]
   (list 'if params body))
 
 ;;;; Begin
-(defexpression (begin & begin-actions))
-
-(defn make-begin [seq]
-  (conj seq 'begin))
 
 (defn last-exp? [exps] (empty? (rest exps)))
 (defn first-exp [[exp]] exp)
 (defn rest-exp [[_ & rest]] rest)
+
+(defn eval-sequence [exps env]
+  (loop [es exps]
+    (if (last-exp? es)
+        (scheme-eval (first-exp es) env)
+        (do
+          (scheme-eval (first-exp es) env)
+          (recur (rest-exp es))))))
+        
+(defexpression
+  :syntax (begin & begin-actions)
+  :eval (fn [exp env]
+          (eval-sequence
+           (begin-actions exp)
+           env)))
+
+(defn make-begin [seq]
+  (conj seq 'begin))
 
 (defn sequence->exp [[first-exp & rest-exps]]
   ;; Wraps a sequence of expressions in a begin expression
@@ -100,7 +190,7 @@
 
 ;;;; Cond
 
-(defexpression (cond & cond-clauses))
+(defexpression :syntax (cond & cond-clauses))
 
 (defn cond-predicate [[pred]] pred)
 (defn cond-actions [[_ & actions]] actions)
@@ -142,6 +232,9 @@
 ;;;; Compound procedures
 
 (defrecord compound-procedure [parameters body env])
+(defn make-compound-procedure [params body env]
+  ; this will have to do since we cannot declare record names..
+  (compound-procedure. params body env))
 (defn compound-procedure? [p] (instance? compound-procedure p))
 
 ;;;; Frames 
@@ -197,26 +290,6 @@
         (frame-add-binding! frame var val))))
 
 ;;;; Eval ;;;;
-
-(defn eval-assignment [exp env]
-  (set-variable-value!
-    env
-    (assignment-variable exp)
-    (scheme-eval (assignment-value exp) env))
-  'ok)
-
-
-(defn eval-definition [exp env]
-  (define-variable!
-    env
-    (definition-variable exp)
-    (scheme-eval (definition-value exp) env))
-  (definition-variable exp))
-    
-(defn eval-if [exp env]
-  (if (scheme-true? (scheme-eval (if-predicate exp) env))
-      (scheme-eval (if-consequent exp) env)
-      (scheme-eval (if-alternative exp) env)))
     
 (defn list-of-values [exps env]
   (loop [es exps
@@ -227,38 +300,22 @@
                (cons (scheme-eval (first-operand es) env)
                      acc)))))
 
-(defn eval-sequence [exps env]
-  ;(println env)
-  (loop [es exps]
-    (if (last-exp? es)
-        (scheme-eval (first-exp es) env)
-        (do
-          (scheme-eval (first-exp es) env)
-          (recur (rest-exp es))))))
-        
 (defn scheme-eval [exp env]
   (cond 
-    (self-evaluating? exp) exp
-    (variable? exp) (lookup-variable-value exp env)
-    (quote? exp) (text-of-quotation exp)
-    (assignment? exp) (eval-assignment exp env)
-    (definition? exp) (eval-definition exp env)
-    (if? exp) (eval-if exp env)
-    (lambda? exp) (compound-procedure.
-                   (lambda-parameters exp)
-                   (lambda-body exp)
-                   env)
-    (begin? exp) (eval-sequence
-                  (begin-actions exp)
-                  env)
-    (cond? exp) (scheme-eval
-                 (cond->if exp)
-                 env)
-    (application? exp) (scheme-apply
-                        (scheme-eval (operator exp) env)
-                        (list-of-values (operands exp) env))
-    :else (throw
-           (Exception. (str "Unknown expression type " exp "\n")))))
+   (self-evaluating? exp) exp
+   (variable? exp) (lookup-variable-value exp env)
+   (quote? exp) (text-of-quotation exp)
+   (has-eval? exp) (let
+                       [eval-proc (get-eval exp)]
+                     (eval-proc exp env))
+   (cond? exp) (scheme-eval
+                (cond->if exp)
+                env)
+   (application? exp) (scheme-apply
+                       (scheme-eval (operator exp) env)
+                       (list-of-values (operands exp) env))
+   :else (throw
+          (Exception. (str "Unknown expression type " exp "\n")))))
 
 ;;;; Apply ;;;;
 
@@ -273,7 +330,7 @@
                                           (.env procedure)
                                           (.parameters procedure)
                                           arguments))
-        :else (throw
+       :else (throw
                (Exception. (str "Unknown procedure type " procedure "\n")))))
         
 ;;;; REPL ;;;;

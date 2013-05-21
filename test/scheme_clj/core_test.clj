@@ -58,6 +58,17 @@
                           env)
              10)))))
 
+(deftest test-set!
+  (let [env (setup-environment)]
+    (testing "set!"
+      (is (= (scheme-eval
+              '(begin
+                (define x 100)
+                (set! x 10)
+                x)
+              env)
+             10)))))
+
 (deftest test-cond
   (let [env (setup-environment)]
     (testing "Cond with only else"
