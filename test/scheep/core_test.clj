@@ -1,6 +1,6 @@
-(ns scheme-clj.core-test
+(ns scheep.core-test
   (:use clojure.test 
-        scheme-clj.core))
+        scheep.core))
 
 (deftest test-self-evaluating?
   (testing "Strings are self evaluating"

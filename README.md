@@ -1,35 +1,13 @@
-# scheme-clj
+# scheep
 
-A Scheme interpreter implemented in Clojure
+A toy Scheme interpreter implemented in Clojure. There is still 
+a lot to be done. I just need a safe place to put this before I
+spill coffee on my laptop again.
 
-## Installation
 
-Download from http://example.com/FIXME.
-
-## Usage
-
-FIXME: explanation
-
-    $ java -jar scheme-clj-0.1.0-standalone.jar [args]
-
-## Options
-
-FIXME: listing of options this app accepts.
-
-## Examples
-
-...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
 
 ## License
 
-Copyright © 2013 FIXME
+Copyright © 2013 David de Klerk
 
 Distributed under the Eclipse Public License, the same as Clojure.

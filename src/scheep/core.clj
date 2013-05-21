@@ -1,4 +1,4 @@
-(ns scheme-clj.core
+(ns scheep.core
   (:gen-class))
 
 ;;;; Forward declarations
