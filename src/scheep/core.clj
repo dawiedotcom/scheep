@@ -395,12 +395,12 @@
   
 (defn driver-loop [global-env]
   (prompt-for-input input-prompt)
-  (let [input (read)
-        output (scheme-eval input global-env)]
-    (print-output output-prompt output)
-    ;(user-print output))
-    (recur global-env)
-    ))
+  (let [input (read *in* false nil)]
+    (if input
+      (let [output (scheme-eval input global-env)]
+        (print-output output-prompt output)
+        (recur global-env))
+      (println))))
     
 (def the-global-environment (setup-environment))
 
