@@ -69,6 +69,42 @@
               env)
              10)))))
 
+(deftest test-define
+  (let [env (setup-environment)]
+    (testing "define self evaluating variables"
+      (is (= (scheme-eval
+              '(begin (define x 10) x)
+              env)
+             10))
+      (is (= (scheme-eval
+              '(begin (define x "this is a string") x)
+              env)
+             "this is a string")))
+    (testing "define with expressions"
+      (is (= (scheme-eval
+              '(begin (define x (if false 20 10)) x)
+              env)
+             10))
+      (is (= (scheme-eval
+              '(begin (define x (quote test)) x)
+              env)
+             'test))
+      (is (= (scheme-eval
+              '(begin (define x (lambda (x y) (+ x y))) (x 5 5))
+              env)
+             10)))
+    (testing "define syntax for procedures"
+      (is (= (scheme-eval
+              '(begin (define (id x) x)
+                      (id 50))
+              env)
+             50))
+      (is (= (scheme-eval
+              '(begin (define (adder x y) (+ x y))
+                      (adder (adder 10 10) 30))
+              env)
+             50)))))
+
 (deftest test-cond
   (let [env (setup-environment)]
     (testing "Cond with only else"

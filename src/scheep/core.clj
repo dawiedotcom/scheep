@@ -8,7 +8,8 @@
          set-variable-value!
          define-variable!
          scheme-true?
-         make-compound-procedure)
+         make-compound-procedure
+         make-lambda)
          
 ;;;; A map of eval function for scheme special forms
 
@@ -111,14 +112,28 @@
           'ok))
   
 ;;;; Definitions
+(defn procedure-definition? [variable]
+  (list? variable))
+(defn procedure-arguments [[_ & args]] args)
+(defn procedure-name [[name]] name)
+                                   
 (defexpression
   :syntax (define definition-variable definition-value)
   :eval (fn [exp env]
-          (define-variable!
-            env
-            (definition-variable exp)
-            (scheme-eval (definition-value exp) env))
-          (definition-variable exp)))
+          (let [name-clause (definition-variable exp)]
+            (if (procedure-definition? name-clause)
+              (define-variable!
+                env
+                (procedure-name name-clause)
+                (make-compound-procedure      
+                 (procedure-arguments name-clause)
+                 (list (definition-value exp))
+                 env))
+              (define-variable!
+                env
+                (definition-variable exp)
+                (scheme-eval (definition-value exp) env)))
+            'ok)))
 
 ;;;; Conditionals
 (defexpression
@@ -141,7 +156,7 @@
            env)))
 
 (defn make-lambda [params body]
-  (list 'if params body))
+  (list 'lambda params body))
 
 ;;;; Begin
 
@@ -368,7 +383,7 @@
 
 ;;;; repl proper
 
-(def input-prompt "; scheme-clj> ")
+(def input-prompt "; scheep> ")
 (def output-prompt ";= ")
 
 (defn prompt-for-input [prompt]
