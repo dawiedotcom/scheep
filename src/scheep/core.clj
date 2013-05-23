@@ -83,6 +83,13 @@
        ;; Register the eval if one was given
        ~(if eval-fn (gen-call-to-register-eval exp-symbol eval-fn)))))
 
+(defmacro defeval
+
+  [symbol params & body]
+  `(register-eval
+    ~(keyword symbol)
+    (fn ~params ~@body)))
+  
 ;;;; Self evaluating expressions
 
 (defn self-evaluating? [exp]
@@ -117,31 +124,27 @@
 (defn procedure-arguments [[_ & args]] args)
 (defn procedure-name [[name]] name)
                                    
-(defexpression
-  :syntax (define definition-variable definition-value)
-  :eval (fn [exp env]
-          (let [name-clause (definition-variable exp)]
-            (if (procedure-definition? name-clause)
-              (define-variable!
-                env
-                (procedure-name name-clause)
-                (make-compound-procedure      
-                 (procedure-arguments name-clause)
-                 (list (definition-value exp))
-                 env))
-              (define-variable!
-                env
-                (definition-variable exp)
-                (scheme-eval (definition-value exp) env)))
-            'ok)))
+(defeval define [[_ definition-variable definition-value] env]
+  (let [name-clause definition-variable]
+    (if (procedure-definition? name-clause)
+      (define-variable!
+        env
+        (procedure-name name-clause)
+        (make-compound-procedure      
+         (procedure-arguments name-clause)
+         (list definition-value)
+         env))
+      (define-variable!
+        env
+        definition-variable
+        (scheme-eval definition-value env)))
+    'ok))
 
 ;;;; Conditionals
-(defexpression
-  :syntax (if if-predicate if-consequent if-alternative)
-  :eval (fn [exp env]
-          (if (scheme-true? (scheme-eval (if-predicate exp) env))
-            (scheme-eval (if-consequent exp) env)
-            (scheme-eval (if-alternative exp) env))))
+(defeval if [[_ if-predicate if-consequent if-alternative] env]
+  (if (scheme-true? (scheme-eval if-predicate env))
+    (scheme-eval if-consequent env)
+    (scheme-eval if-alternative env)))
 
 (defn make-if [predicate consequent alternative]
   (list 'if predicate consequent alternative))
