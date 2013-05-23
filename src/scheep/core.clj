@@ -109,14 +109,12 @@
 (defexpression :syntax (quote text-of-quotation))
   
 ;;; Assignment
-(defexpression
-  :syntax (set! assignment-variable assignment-value)
-  :eval (fn [exp env]
-          (set-variable-value!
-           env
-           (assignment-variable exp)
-           (scheme-eval (assignment-value exp) env))
-          'ok))
+(defeval set! [[_ assignment-variable assignment-value] env]
+  (set-variable-value!
+   env
+   assignment-variable
+   (scheme-eval assignment-value env))
+  'ok)
   
 ;;;; Definitions
 (defn procedure-definition? [variable]
