@@ -106,7 +106,8 @@
       (= exp false)))
 
 ;;;; Quotes
-(defexpression :syntax (quote text-of-quotation))
+(defeval quote [[_ text-of-quotation] env]
+  text-of-quotation)
   
 ;;; Assignment
 (defeval set! [[_ assignment-variable assignment-value] env]
@@ -320,7 +321,6 @@
   (cond 
    (self-evaluating? exp) exp
    (variable? exp) (lookup-variable-value exp env)
-   (quote? exp) (text-of-quotation exp)
    (has-eval? exp) (let
                        [eval-proc (get-eval exp)]
                      (eval-proc exp env))
