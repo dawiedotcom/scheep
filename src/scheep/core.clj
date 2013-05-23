@@ -172,12 +172,8 @@
           (scheme-eval (first-exp es) env)
           (recur (rest-exp es))))))
         
-(defexpression
-  :syntax (begin & begin-actions)
-  :eval (fn [exp env]
-          (eval-sequence
-           (begin-actions exp)
-           env)))
+(defeval begin [[_ & begin-actions] env]
+  (eval-sequence begin-actions env))
 
 (defn make-begin [seq]
   (conj seq 'begin))
