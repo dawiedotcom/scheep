@@ -149,13 +149,11 @@
   (list 'if predicate consequent alternative))
 
 ;;;; Lambda expressions
-(defexpression
-  :syntax (lambda lambda-parameters & lambda-body)
-  :eval (fn [exp env]
-          (make-compound-procedure
-           (lambda-parameters exp)
-           (lambda-body exp)
-           env)))
+(defeval lambda [[_ lambda-parameters & lambda-body] env]
+  (make-compound-procedure
+   lambda-parameters
+   lambda-body
+   env))
 
 (defn make-lambda [params body]
   (list 'lambda params body))
