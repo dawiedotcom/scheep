@@ -201,7 +201,8 @@
 
 ;;;; Cond
 
-(defexpression :syntax (cond & cond-clauses))
+(defn cond? [exp] (tagged-list? exp 'cond))
+(defn cond-clauses [[_ & clauses]] clauses)
 
 (defn cond-predicate [[pred]] pred)
 (defn cond-actions [[_ & actions]] actions)
