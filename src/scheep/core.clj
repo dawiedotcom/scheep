@@ -29,62 +29,14 @@
 
 ;;;; Expression Types ;;;;
 
-(defn gen-selector [selector-symbol pos]
-  ;; A clojure syntax function to define a selector using
-  ;; destructuring
-  `(~'defn ~selector-symbol [~(conj pos 's)] ~'s))
-
-(defn gen-call-to-register-eval [symbol eval-fn]
-  ;; A clojure syntax function to register the given eval
-  ;; function in the map of evals
-  `(register-eval ~(keyword symbol) ~eval-fn))
-
 (defn tagged-list? [exp tag]
   (if (list? exp)
       (= (first exp) tag)
       false))
 
-(defmacro defexpression
-  "Defines predicates, selectors and evals for a scheme  
-   special form.
-
-   The call
-     (defexpression :syntax (begin & begin-actions)
-                    :eval (fn [exp env] ... ))
-   will define the following functions:
-    1) a predicate begin? to test if a scheme expression
-       is the begin special form
-    2) a selector begin-actions to get a list of the
-       expressions inside begin.
-
-   The value of :eval is an optional function that will
-   be used automatically by scheme-eval to interpret the
-   special form."
-  [& args]
-  (let [{[exp-symbol & selectors] :syntax
-         eval-fn :eval} args]
-    `(do
-       ;; The predicate
-       (~'defn ~(symbol (str exp-symbol "?")) [~'exp]
-         (tagged-list? ~'exp (quote ~exp-symbol)))
-       ;; Each of the selectors
-       ~@(loop [[s & ss] selectors
-                acc '()
-                underscores '[_]]
-           (cond
-            (nil? s) acc
-            (= s '&) (conj acc
-                           ; Special case for & to select a list of all the
-                           ; last forms
-                           (gen-selector (first ss) (conj underscores '&)))
-            :else (recur ss
-                         (conj acc (gen-selector s underscores))
-                         (conj underscores '_))))
-       ;; Register the eval if one was given
-       ~(if eval-fn (gen-call-to-register-eval exp-symbol eval-fn)))))
-
 (defmacro defeval
-
+  "A macro that defines and registers a fn to eval
+  a scheme special form"
   [symbol params & body]
   `(register-eval
     ~(keyword symbol)
