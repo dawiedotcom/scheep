@@ -35,6 +35,9 @@
 (defn let-syntax? [[let-syn]]
   (= let-syn 'let-syntax))
 
+(defn define-syntax? [[define-syn]]
+  (= define-syn 'define-syntax))
+
 (defn application? [exp]
   (list? exp))
 
@@ -86,6 +89,10 @@
     ;(pprint bindings)
     (expand-expression (first body) new-s-env)))
 
+(defn define-syntax [[_ name transformer-spec] s-env]
+  (let [transformer (syntax-rules transformer-spec s-env)]
+    (bind s-env (list name) (list transformer))))
+
 ;;;; Macro expansion 
         
 (defn expand-expression [exp s-env]
@@ -99,6 +106,25 @@
    (macro-call? exp s-env) (transcribe exp s-env)
    (application? exp) (expand-application exp s-env)
    :else exp))
+
+(defn expand [exprs]
+  ;; The top level marco expander
+  ;(let [s-env the-empty-environment]
+  (loop [es exprs
+         s-env the-empty-environment
+         acc (list)]
+    (if (empty? es)
+      (reverse acc)
+      (let [[e & rest] es]
+          (if (define-syntax? e)
+            (recur rest
+                   (define-syntax e s-env)
+                   acc)
+            (recur rest
+                   s-env
+                   (cons
+                    (expand-expression e s-env)
+                    acc)))))))
 
 ;;;; The hygenic macro expansion functions from [1]
 
