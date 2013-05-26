@@ -96,10 +96,12 @@
 ;;;; Macro expansion 
         
 (defn expand-expression [exp s-env]
-  ;(print  " expand-expression ")
-  ;(pprint exp)
+  ;(print  " expand-expression " exp)
   ;(println s-env)
   (cond
+   (or (number? exp)
+       (true? exp)
+       (false? exp)) exp
    (symbol? exp) (lookup exp s-env)
    (procedure-abstraction? exp) (expand-procedure exp s-env)
    (let-syntax? exp) (expand-let-syntax exp s-env)
@@ -156,19 +158,24 @@
                         fresh-identifiers
                         (map #(lookup % s-env-def)
                              identifiers))]
-    ;(println "\n" identifiers "\n" new-sub "\n")
     (defn rewrite-h [exp rewritten]
-      (cond (empty? exp) (apply list rewritten)
-            (list? (first exp)) (recur
-                                 (rest exp)
-                                 (concat
-                                  rewritten
-                                  (vector
-                                  (rewrite-h (first exp) '()))))
-            :else (recur
-                   (rest exp)
-                   (concat  rewritten
-                            ((first exp) new-sub)))))
+      ;(println "rewrite: " exp "\n" rewritten)
+      (cond
+       ; no more forms left in the pattern's rule
+       (empty? exp)
+       (apply list rewritten)
+       ; expand recursively into a list 
+       (list? (first exp))
+       (recur
+        (rest exp)
+        (concat rewritten
+                (vector
+                 (rewrite-h (first exp) (vector)))))
+       ; expand the next form in the rule
+       :else (recur
+              (rest exp)
+              (concat  rewritten
+                       ((first exp) new-sub)))))
     [(rewrite-h rule (vector))
      s-env-new]))
         
@@ -197,9 +204,14 @@
   (defn iter [[f & fs :as forms] [p & ps] subs]
     (cond
      ; We are done
-     (and (nil? p) (nil? f)) subs
+     (and (nil? p) (nil? f))
+     subs
      ; there are unmatched forms. 
-     (nil? p) nil
+     (nil? p)
+     nil
+     ; there are unmatched patterns
+     ;(nil? t)
+     
      ; Match a list
      :else
      (let [p2 (first ps)]
@@ -208,9 +220,11 @@
         ; to one substitution
         ; TODO: failed matches will go unnoticed here!!
         (= p2 '...) 
-        (apply merge-concat
-               (cons subs
-                     (map #(iter (list %) (list p) {}) forms)))
+        (if (empty? forms)
+          (merge-concat subs {p nil})
+          (apply merge-concat
+                 (cons subs
+                       (map #(iter (list %) (list p) {}) forms))))
         ; p is an identifier
         (symbol? p)
         (let [lit? (literal? p)]
@@ -228,7 +242,7 @@
         ; no matches
         :else nil))))
   
-  (let [subs (iter exp-args pattern-vars {})]
+  (let [subs (iter exp-args pattern-vars {'... nil})]
     (if subs
       (list subs rewrite-rule);TODO return a vector
       nil)))
