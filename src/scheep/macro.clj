@@ -128,6 +128,18 @@
 
 ;;;; The hygenic macro expansion functions from [1]
 
+(defn merge-concat [& maps]
+  ;; assuming each map has only lists as values, this
+  ;; does the same as merge, but concats vals that
+  ;; correspond to the same key.
+  ;(println "merge-concat " maps)
+  (defn reducer [m1 m2]
+    (let [ks (concat (keys m1) (keys m2))
+          vs (map #(concat (% m1) (% m2)) ks)]
+      (zipmap ks vs)))
+  (reduce reducer maps))
+
+
 (defn rewrite [rule substitution s-env-def]
   (defn get-ids []
     (let [unique-symbols (distinct (flatten rule))
@@ -137,25 +149,27 @@
   (let [identifiers (doall (get-ids))
         fresh-identifiers (map #(fresh-identifier s-env-def %)
                                identifiers)
-        fresh-ids-sub (zipmap identifiers fresh-identifiers)
-        new-sub (merge substitution fresh-ids-sub)
+        fresh-ids-sub (zipmap identifiers
+                              (map list fresh-identifiers))
+        new-sub (merge-concat substitution fresh-ids-sub)
         s-env-new (bind the-empty-environment
                         fresh-identifiers
                         (map #(lookup % s-env-def)
                              identifiers))]
-    ;(println new-sub)
+    ;(println "\n" identifiers "\n" new-sub "\n")
     (defn rewrite-h [exp rewritten]
-      ;(println " rewrite-h " exp new-sub)
-      (cond (empty? exp) (reverse rewritten)
+      (cond (empty? exp) (apply list rewritten)
             (list? (first exp)) (recur
                                  (rest exp)
-                                 (cons
-                                  (rewrite-h (first exp) '())
-                                  rewritten))
+                                 (concat
+                                  rewritten
+                                  (vector
+                                  (rewrite-h (first exp) '()))))
             :else (recur
                    (rest exp)
-                   (cons ((first exp) new-sub) rewritten))))
-    [(rewrite-h rule (list))
+                   (concat  rewritten
+                            ((first exp) new-sub)))))
+    [(rewrite-h rule (vector))
      s-env-new]))
         
 (defn transcribe [exp s-env-use]
@@ -168,28 +182,56 @@
          s-env-new] (rewrite rule substitution s-env-def)
         s-env-diverted (divert s-env-use s-env-new)]
     (expand-expression transcribed-exp s-env-diverted)))
- 
+
 (defn match [[_ & exp-args]
              [[_ & pattern-vars] rewrite-rule]
              literals
              s-env-use
              s-env-def]
-  (defn match-one? [e v]
-    (let [lit (some #{v} literals)]
-      (if lit
-        (= (lookup v s-env-def)
-           (lookup e s-env-use))
-        true)))
-  (defn match? []
-    (and (= (count exp-args)
-             (count pattern-vars))
-         (every? identity
-                 (map match-one? exp-args pattern-vars))))
-  (if (match?)
-    (list
-     (zipmap pattern-vars exp-args)
-     rewrite-rule)
-    nil))
+  (defn literal? [p]
+    (some #{p} literals))
+  (defn same-literal? [p f]
+    (= (lookup p s-env-def)
+       (lookup f s-env-use)))
+    
+  (defn iter [[f & fs :as forms] [p & ps] subs]
+    (cond
+     ; We are done
+     (and (nil? p) (nil? f)) subs
+     ; there are unmatched forms. 
+     (nil? p) nil
+     ; Match a list
+     :else
+     (let [p2 (first ps)]
+       (cond
+        ; ellipses. match each elment in forms, and reduce
+        ; to one substitution
+        ; TODO: failed matches will go unnoticed here!!
+        (= p2 '...) 
+        (apply merge-concat
+               (cons subs
+                     (map #(iter (list %) (list p) {}) forms)))
+        ; p is an identifier
+        (symbol? p)
+        (let [lit? (literal? p)]
+          ;(println p " is a symbol")
+          (if (and lit? (same-literal? p f)) 
+            ; f and p is the same literal, literals don't
+            ; go into subs
+            (recur fs ps subs)   
+            ; p is not a literal and the next p is not ... or .
+            ; match. p should expand to f
+            (recur fs ps (assoc subs p (list f)))))
+        ; p is a list
+        (list? p)
+        (recur fs ps (merge-concat subs (iter f p {})))
+        ; no matches
+        :else nil))))
+  
+  (let [subs (iter exp-args pattern-vars {})]
+    (if subs
+      (list subs rewrite-rule);TODO return a vector
+      nil)))
   
 ;;;; Constructor for transformer functions 
 
