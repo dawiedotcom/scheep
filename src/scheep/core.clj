@@ -1,15 +1,21 @@
 (ns scheep.core
-  (:gen-class))
+  (:gen-class)
+  (:use
+   [scheep.env :only [extend-environment
+                      the-empty-environment
+                      the-empty-environment?
+                      define-variable!
+                      set-variable-value!
+                      lookup-variable-value]]))
 
 ;;;; Forward declarations
 
 (declare scheme-eval
          scheme-apply
-         set-variable-value!
-         define-variable!
          scheme-true?
          make-compound-procedure
-         make-lambda)
+         syntax-rules
+         expand-expression)
          
 ;;;; A map of eval function for scheme special forms
 
@@ -200,58 +206,6 @@
   ; this will have to do since we cannot declare record names..
   (compound-procedure. params body env))
 (defn compound-procedure? [p] (instance? compound-procedure p))
-
-;;;; Frames 
-
-(defn make-frame [variables values]
-  (ref (zipmap variables values)))
-(defn frame-add-binding! [frame var val]
-  (dosync
-   (alter frame #(assoc % var val))))
-(defn frame-get-binding [frame var]
-  (@frame var))
-(defn frame-defined? [frame var]
-  (contains? @frame var))
-
-(defn print-frame [frame]
-  (println)
-  (doseq [[var val] @frame]
-    (println (str "\t" var " => " val)))
-  (println))
-
-;;;; Environments 
-
-(def the-empty-environment nil)
-(defn the-empty-environment? [env]
-  (empty? env))
-
-(defn first-frame [env] (first env))
-(defn enclosing-environment [env] (next env))
-(defn extend-environment [env vars vals] 
-  (conj env (make-frame vars vals)))
-
-(defn with-var-in-env [proc var env] 
-  (letfn [(lookup [e]
-            (if (the-empty-environment? e)
-                (Exception. (str "Variable " var " is not defined\n"))
-                (let [frame (first-frame e)]
-                  ;(println (str "Looking for " var " in:"))
-                  ;(print-frame frame)
-                  (if (frame-defined? frame var)
-                      (proc frame var)
-                      (recur (enclosing-environment e))))))]
-    (lookup env)))
-
-(defn set-variable-value! [env var val]
-  (with-var-in-env #(frame-add-binding! %1 %2 val) var env))
-(defn lookup-variable-value [exp env]
-  ;; Called by eval, only if exp is a variable
-  (with-var-in-env frame-get-binding exp env))
-(defn define-variable! [env var val] 
-  (if (the-empty-environment? env)
-      (throw (.Exception "Cannot define variables in the-empty-environment"))
-      (let [frame (first-frame env)]
-        (frame-add-binding! frame var val))))
 
 ;;;; Eval ;;;;
     
