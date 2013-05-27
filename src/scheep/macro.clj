@@ -9,7 +9,8 @@
                       
 
 (declare syntax-rules
-         expand-expression)
+         expand-expression
+         transcribe)
 
 ;;;; Macros ;;;;
 ;; A very direct implementation of 'Macros That work' [1].
@@ -46,6 +47,14 @@
 
 (defn fresh-identifier [s-env id]
   (symbol (str id "." (count s-env))))
+
+;;;; The global syntactic environment - so that consecutive calls
+;;;; to expand can use the same macros defined with define-syntax.
+
+(def ^:dynamic *global-s-env* (ref the-empty-environment))
+(defn update-global-env! [new-env]
+  (dosync
+    (alter *global-s-env* (fn [a] new-env))))
 
 ;;;; Expand lists
 
@@ -113,15 +122,17 @@
   ;; The top level marco expander
   ;(let [s-env the-empty-environment]
   (loop [es exprs
-         s-env the-empty-environment
+         s-env @*global-s-env* ;the-empty-environment
          acc (list)]
     (if (empty? es)
       (reverse acc)
       (let [[e & rest] es]
           (if (define-syntax? e)
-            (recur rest
-                   (define-syntax e s-env)
-                   acc)
+            (let [new-glob (define-syntax e s-env)]
+              (update-global-env! new-glob)
+              (recur rest
+                     new-glob
+                     acc))
             (recur rest
                    s-env
                    (cons
