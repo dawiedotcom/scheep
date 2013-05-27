@@ -6,16 +6,17 @@
                       the-empty-environment?
                       define-variable!
                       set-variable-value!
-                      lookup-variable-value]]))
+                      lookup-variable-value]]
+   [scheep.reader :only [scheme-read-file]]
+   [scheep.macro :only [expand]]))
 
 ;;;; Forward declarations
 
 (declare scheme-eval
          scheme-apply
+         scheme-load
          scheme-true?
-         make-compound-procedure
-         syntax-rules
-         expand-expression)
+         make-compound-procedure)
          
 ;;;; A map of eval function for scheme special forms
 
@@ -112,9 +113,6 @@
    lambda-parameters
    lambda-body
    env))
-
-(defn make-lambda [params body]
-  (list 'lambda params body))
 
 ;;;; Begin
 
@@ -264,6 +262,9 @@
         (list '* *)
         (list '/ /)
         (list '= =)
+        (list '> >)
+        (list '< <)
+        (list 'load scheme-load)
         (list 'list list)
         (list 'display print)
         (list 'newline (fn [] (println)))))
@@ -299,14 +300,25 @@
   (prompt-for-input input-prompt)
   (let [input (read *in* false nil)]
     (if input
-      (let [output (scheme-eval input global-env)]
+      (let [[expanded] (expand (list input))
+            output (scheme-eval expanded global-env)]
         (print-output output-prompt output)
         (recur global-env))
       (println))))
     
 (def the-global-environment (setup-environment))
 
+(defn scheme-load [filename]
+  (let [env the-global-environment
+        expanded-exprs (->>
+                         filename
+                         (scheme-read-file)
+                         (expand))]
+    (map #(scheme-eval % env) expanded-exprs)))
+
+
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
+  (scheme-load "src/scheep/core.scm")
   (driver-loop the-global-environment))
