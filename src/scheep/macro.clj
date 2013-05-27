@@ -127,17 +127,17 @@
     (if (empty? es)
       (reverse acc)
       (let [[e & rest] es]
-          (if (define-syntax? e)
-            (let [new-glob (define-syntax e s-env)]
-              (update-global-env! new-glob)
-              (recur rest
-                     new-glob
-                     acc))
+        (if (and (coll? e) (define-syntax? e))
+          (let [new-glob (define-syntax e s-env)]
+            (update-global-env! new-glob)
             (recur rest
-                   s-env
-                   (cons
-                    (expand-expression e s-env)
-                    acc)))))))
+                   new-glob
+                   acc))
+          (recur rest
+                 s-env
+                 (cons
+                   (expand-expression e s-env)
+                   acc)))))))
 
 ;;;; The hygenic macro expansion functions from [1]
 
@@ -172,6 +172,9 @@
     (defn rewrite-h [exp rewritten]
       ;(println "rewrite: " exp "\n" rewritten)
       (cond
+       ; exp is a symbol
+       (symbol? exp)
+       (first (exp new-sub))
        ; no more forms left in the pattern's rule
        (empty? exp)
        (apply list rewritten)
@@ -201,7 +204,7 @@
         s-env-diverted (divert s-env-use s-env-new)]
     (expand-expression transcribed-exp s-env-diverted)))
 
-(defn match [[_ & exp-args]
+(defn match [[macro-name & exp-args]
              [[_ & pattern-vars] rewrite-rule]
              literals
              s-env-use
@@ -220,9 +223,6 @@
      ; there are unmatched forms. 
      (nil? p)
      nil
-     ; there are unmatched patterns
-     ;(nil? t)
-     
      ; Match a list
      :else
      (let [p2 (first ps)]
@@ -253,7 +253,9 @@
         ; no matches
         :else nil))))
   
-  (let [subs (iter exp-args pattern-vars {'... nil})]
+  (let [subs (iter exp-args 
+                   pattern-vars 
+                   {'... nil, macro-name (list macro-name)})]
     (if subs
       (list subs rewrite-rule);TODO return a vector
       nil)))
@@ -265,12 +267,16 @@
   ; list
   ;     (s-env-def substitution rewrite-rule)
   (fn [exp s-env-use]
-    (conj
-     (some #(match exp
-                   %
-                   literals
-                   s-env-use
-                   s-env-def)
-           patterns)
-     s-env-def)))
+    (let [matcher 
+          (some #(match exp
+                        %
+                        literals
+                        s-env-use
+                        s-env-def)
+                patterns)]
+      (if matcher
+        (conj matcher s-env-def)
+        (throw 
+          (Exception. 
+            (str "No matching pattern found: " literals " => " patterns)))))))
 

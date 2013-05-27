@@ -10,7 +10,7 @@
                              '()
                              '()
                              '())]
-      (is (and (= subs '{a (one), b (two), ... nil})
+      (is (and (= subs '{a (one), b (two), ... nil, or2 (or2)})
                (= rule '(or a b))))
       (is (= (match '(or2 one two three)
                     pattern
@@ -23,22 +23,22 @@
     (let [pattern '((_ a b ...) (or a b))]
       (let [[subs _]
             (match '(or one two three) pattern '() '() '())]
-        (is (= subs '{a (one), b (two three), ... ()})))
+        (is (= subs '{a (one), b (two three), ... (), or (or)})))
 
       (let [[subs _]
             (match '(or one two) pattern '() '() '())]
-        (is (= subs '{a (one), b (two), ... ()})))
+        (is (= subs '{a (one), b (two), ... (), or (or)})))
 
       (let [[subs _]
             (match '(or one) pattern '() '() '())]
         ;(is (= subs '{a (one), b ()})))))
-        (is (= subs '{a (one), b (), ... ()})))))
+        (is (= subs '{a (one), b (), ... (), or (or)})))))
 
   (testing "let like pattern"
     (let [pattern '((_ ((vars vals) ...)) (or vars vals))
           form '(something ((a 1) (b 2) (c 3)))
           [subs rule] (match form pattern '() '() '())]
-      (is (= subs '{vars (a b c) vals (1 2 3) ... ()}))
+      (is (= subs '{vars (a b c) vals (1 2 3) ... () something (something)}))
       (is (= rule '(or vars vals))))))
 
 
@@ -50,11 +50,11 @@
           tau (syntax-rules exp '(def-env))]
       (is (=
            (tau '(_ one two) '(use-env))
-           '((def-env) {b (two), a (one) ... nil} (or a b))))
+           '((def-env) {b (two), a (one) ... nil, _ (_)} (or a b))))
       (is (=
            (tau '(_ one two three) '(use-env))
            '((def-env)
-             {c (three), b (two), a (one), ... nil}
+             {c (three), b (two), a (one), ... nil, _ (_)}
              (or a b c)))))))
 
 ;(expand-let-syntax '(let-syntax ((m  (syntax-rules () ((_ a b) (or a b))))) (m a b)) the-empty-environment)
