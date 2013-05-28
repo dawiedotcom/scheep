@@ -16,39 +16,18 @@
          scheme-apply
          scheme-load
          scheme-true?
+         list-of-values
          make-compound-procedure)
          
-;;;; A map of eval function for scheme special forms
-
-(def ^:dynamic *evals* (ref {}))
-
-(defn get-form-symbol [exp] (keyword (first exp)))
-
-(defn get-eval [exp]
-  ((get-form-symbol exp) @*evals*))
-
-(defn has-eval? [exp]
-  (contains? @*evals* (get-form-symbol exp)))
-
-(defn register-eval [symbol function]
-  (dosync
-   (alter *evals* #(assoc % symbol function))))
-
 ;;;; Expression Types ;;;;
 
 (defn tagged-list? [exp tag]
   (if (list? exp)
       (= (first exp) tag)
       false))
-
-(defmacro defeval
-  "A macro that defines and registers a fn to eval
-  a scheme special form"
-  [symbol params & body]
-  `(register-eval
-    ~(keyword symbol)
-    (fn ~params ~@body)))
   
+(defmulti eval-form (fn [[op] env] op))
+
 ;;;; Self evaluating expressions
 
 (defn self-evaluating? [exp]
@@ -65,15 +44,15 @@
       (= exp false)))
 
 ;;;; Quotes
-(defeval quote [[_ text-of-quotation] env]
+(defmethod eval-form 'quote [[_ text-of-quotation] env]
   text-of-quotation)
   
 ;;; Assignment
-(defeval set! [[_ assignment-variable assignment-value] env]
+(defmethod eval-form 'set! [[_ variable value] env]
   (set-variable-value!
    env
-   assignment-variable
-   (scheme-eval assignment-value env))
+   variable
+   (scheme-eval value env))
   'ok)
   
 ;;;; Definitions
@@ -82,36 +61,36 @@
 (defn procedure-arguments [[_ & args]] args)
 (defn procedure-name [[name]] name)
                                    
-(defeval define [[_ definition-variable definition-value] env]
-  (let [name-clause definition-variable]
+(defmethod eval-form 'define [[_ variable value] env]
+  (let [name-clause variable]
     (if (procedure-definition? name-clause)
       (define-variable!
         env
         (procedure-name name-clause)
         (make-compound-procedure      
          (procedure-arguments name-clause)
-         (list definition-value)
+         (list value)
          env))
       (define-variable!
         env
-        definition-variable
-        (scheme-eval definition-value env)))
+        variable
+        (scheme-eval value env)))
     'ok))
 
 ;;;; Conditionals
-(defeval if [[_ if-predicate if-consequent if-alternative] env]
-  (if (scheme-true? (scheme-eval if-predicate env))
-    (scheme-eval if-consequent env)
-    (scheme-eval if-alternative env)))
+(defmethod eval-form 'if [[_ predicate consequent alternative] env]
+  (if (scheme-true? (scheme-eval predicate env))
+    (scheme-eval consequent env)
+    (scheme-eval alternative env)))
 
 (defn make-if [predicate consequent alternative]
   (list 'if predicate consequent alternative))
 
 ;;;; Lambda expressions
-(defeval lambda [[_ lambda-parameters & lambda-body] env]
+(defmethod eval-form 'lambda [[_ parameters & body] env]
   (make-compound-procedure
-   lambda-parameters
-   lambda-body
+   parameters
+   body
    env))
 
 ;;;; Begin
@@ -128,8 +107,8 @@
           (scheme-eval (first-exp es) env)
           (recur (rest-exp es))))))
         
-(defeval begin [[_ & begin-actions] env]
-  (eval-sequence begin-actions env))
+(defmethod eval-form 'begin [[_ & exprs] env]
+  (eval-sequence exprs env))
 
 (defn make-begin [seq]
   (conj seq 'begin))
@@ -152,6 +131,11 @@
 (defn no-operands? [ops] (empty? ops))
 (defn first-operand [[op]] op)
 (defn rest-operands [[_ & ops]] ops)
+
+(defmethod eval-form :default [exp env]
+  (scheme-apply
+    (scheme-eval (operator exp) env)
+    (list-of-values (operands exp) env)))
 
 ;;;; Derived expressions ;;;;
 
@@ -218,19 +202,12 @@
 
 (defn scheme-eval [exp env]
   (cond 
-   (self-evaluating? exp) exp
-   (variable? exp) (lookup-variable-value exp env)
-   (has-eval? exp) (let
-                       [eval-proc (get-eval exp)]
-                     (eval-proc exp env))
-   (cond? exp) (scheme-eval
-                (cond->if exp)
-                env)
-   (application? exp) (scheme-apply
-                       (scheme-eval (operator exp) env)
-                       (list-of-values (operands exp) env))
-   :else (throw
-          (Exception. (str "Unknown expression type " exp "\n")))))
+    (self-evaluating? exp) exp
+    (variable? exp) (lookup-variable-value exp env)
+    (cond? exp) (scheme-eval
+                  (cond->if exp)
+                  env)
+    :else (eval-form exp env)))
 
 ;;;; Apply ;;;;
 
@@ -299,9 +276,10 @@
 (defn driver-loop [global-env]
   (prompt-for-input input-prompt)
   (let [input (read *in* false nil)]
-    (if input
+    (if (or input (false? input))
       (let [[expanded] (expand (list input))
             output (scheme-eval expanded global-env)]
+        ;(println expanded)
         (print-output output-prompt output)
         (recur global-env))
       (println))))

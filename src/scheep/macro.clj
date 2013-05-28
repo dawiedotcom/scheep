@@ -51,10 +51,9 @@
 ;;;; The global syntactic environment - so that consecutive calls
 ;;;; to expand can use the same macros defined with define-syntax.
 
-(def ^:dynamic *global-s-env* (ref the-empty-environment))
+(def ^:dynamic *global-s-env* (atom the-empty-environment))
 (defn update-global-env! [new-env]
-  (dosync
-    (alter *global-s-env* (fn [a] new-env))))
+  (reset! *global-s-env* new-env))
 
 ;;;; Expand lists
 

@@ -7,10 +7,9 @@
 ;;;; Frames 
 
 (defn make-frame [variables values]
-  (ref (zipmap variables values)))
+  (atom (zipmap variables values)))
 (defn frame-add-binding! [frame var val]
-  (dosync
-   (alter frame #(assoc % var val))))
+  (reset! frame (assoc @frame var val)))
 (defn frame-get-binding [frame var]
   (@frame var))
 (defn frame-defined? [frame var]
