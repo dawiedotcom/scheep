@@ -128,11 +128,29 @@
                      (else 100))
               env)
              10)))
-    (testing "clauses after else"
-      (is (thrown-with-msg?
-           Exception
-           #"else clause.*last clause"
-           (scheme-eval
-            '(cond (else 10) (true 20))
-            env))))))
-  
+    (testing "cond returning test with other clauses"
+      (is (= (scheme-eval
+              '(cond (10)
+                     (((lambda () true)) 50)
+                     (else 100))
+              env)
+             10)))
+    (testing "cond returning test"
+      (is (= (scheme-eval
+              '(cond (10))
+              env)
+             10)))
+    ;(testing "clauses after else"
+    ;  (is (thrown-with-msg?
+    ;       Exception
+    ;       #"else clause.*last clause"
+    ;       (scheme-eval
+    ;        '(cond (else 10) (true 20))
+    ;        env))))
+    ))
+ 
+(deftest test-let
+  (let [env (setup-environment)]
+    (testing "basic let"
+      (is (= (scheme-eval '(let ((a 1)) a) env)
+             1)))))

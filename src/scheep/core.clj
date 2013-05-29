@@ -17,6 +17,7 @@
          scheme-load
          scheme-true?
          list-of-values
+         the-global-environment
          make-compound-procedure)
          
 ;;;; Expression Types ;;;;
@@ -137,32 +138,6 @@
   (scheme-apply
     (scheme-eval (operator exp) env)
     (list-of-values (operands exp) env)))
-
-;;;; Derived expressions ;;;;
-
-;;;; Cond
-
-(defn cond? [exp] (tagged-list? exp 'cond))
-(defn cond-clauses [[_ & clauses]] clauses)
-
-(defn cond-predicate [[pred]] pred)
-(defn cond-actions [[_ & actions]] actions)
-(defn cond-else-clause? [clause]
-  (= (cond-predicate clause) 'else))
-
-(defn expand-clauses [[first-clause & rest-clauses]]
-  (if (nil? first-clause)
-      'false                 ; cond with no else
-      (if (cond-else-clause? first-clause)
-          (if (empty? rest-clauses)
-              (sequence->exp (cond-actions first-clause))
-              (throw (Exception. "else clause isn't the last clause")))
-          (make-if (cond-predicate first-clause)
-                   (sequence->exp (cond-actions first-clause))
-                   (expand-clauses rest-clauses)))))
-  
-(defn cond->if [exp]
-  (expand-clauses (cond-clauses exp)))
 
 ;;;; Evaluator data strucures ;;;;
 

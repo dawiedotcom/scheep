@@ -13,3 +13,22 @@
     ((_ test1 test2 ...)
      (let ((x test1))
        (if x x (or test2 ...))))))
+
+(define-syntax cond
+  (syntax-rules (else =>)
+    ((cond (else result1 result2 ...))
+     (begin result1 result2 ...))
+    ((cond (test)) test)
+    ((cond (test) clause1 clause2 ...)
+     (let ((temp test))
+       (if temp
+           temp
+           (cond clause1 clause2 ...))))
+    ((cond (test result1 result2 ...))
+     (if test (begin result1 result2 ...)))
+    ((cond (test result1 result2 ...)
+           clause1 clause2 ...)
+     (if test
+         (begin result1 result2 ...)
+         (cond clause1 clause2 ...)))))
+
