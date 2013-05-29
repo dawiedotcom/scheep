@@ -32,6 +32,7 @@
 
 (defn self-evaluating? [exp]
   (or (string? exp)
+      (nil? exp)
       (number? exp)
       (= true exp)
       (= false exp)))
@@ -201,18 +202,16 @@
                      acc)))))
 
 (defn scheme-eval [exp env]
-  (cond 
-    (self-evaluating? exp) exp
-    (variable? exp) (lookup-variable-value exp env)
-    (cond? exp) (scheme-eval
-                  (cond->if exp)
-                  env)
-    :else (eval-form exp env)))
+  (let [expanded-exp (expand exp)]
+    (cond 
+      (self-evaluating? expanded-exp) expanded-exp
+      (variable? expanded-exp) (lookup-variable-value expanded-exp env)
+      :else 
+      (eval-form expanded-exp env))))
 
 ;;;; Apply ;;;;
 
 (defn scheme-apply [procedure arguments]
-  ;(println (str "scheme-apply arguments:" arguments))
   (cond (primitive-procedure? procedure) (apply-primitive-procedure
                                           procedure
                                           arguments)
@@ -259,6 +258,7 @@
          (primitive-procedure-objects))]
     (define-variable! initial-env 'true true)
     (define-variable! initial-env 'false false)
+    (scheme-load "src/scheep/core.scm" initial-env)
     initial-env))
 
 ;;;; repl proper
@@ -277,26 +277,19 @@
   (prompt-for-input input-prompt)
   (let [input (read *in* false nil)]
     (if (or input (false? input))
-      (let [[expanded] (expand (list input))
-            output (scheme-eval expanded global-env)]
-        ;(println expanded)
+      (let [ output (scheme-eval input global-env)]
         (print-output output-prompt output)
         (recur global-env))
       (println))))
     
+
+(defn scheme-load [filename env]
+  (let [exprs (scheme-read-file filename)]
+    (doall (map #(scheme-eval % env) exprs))))
+
 (def the-global-environment (setup-environment))
-
-(defn scheme-load [filename]
-  (let [env the-global-environment
-        expanded-exprs (->>
-                         filename
-                         (scheme-read-file)
-                         (expand))]
-    (map #(scheme-eval % env) expanded-exprs)))
-
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (scheme-load "src/scheep/core.scm")
   (driver-loop the-global-environment))

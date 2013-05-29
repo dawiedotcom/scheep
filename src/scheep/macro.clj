@@ -115,26 +115,13 @@
    (application? exp) (expand-application exp s-env)
    :else exp))
 
-(defn expand [exprs]
+(defn expand [exp]
   ;; The top level marco expander
-  ;(let [s-env the-empty-environment]
-  (loop [es exprs
-         s-env @*global-s-env* ;the-empty-environment
-         acc (list)]
-    (if (empty? es)
-      (reverse acc)
-      (let [[e & rest] es]
-        (if (and (coll? e) (define-syntax? e))
-          (let [new-glob (define-syntax e s-env)]
-            (update-global-env! new-glob)
-            (recur rest
-                   new-glob
-                   acc))
-          (recur rest
-                 s-env
-                 (cons
-                   (expand-expression e s-env)
-                   acc)))))))
+  (if (and (coll? exp) (define-syntax? exp))
+    (let [new-glob (define-syntax exp @*global-s-env*)]
+      (update-global-env! new-glob)
+      nil)
+    (expand-expression exp @*global-s-env*)))
 
 ;;;; The hygenic macro expansion functions from [1]
 
