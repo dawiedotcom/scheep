@@ -19,6 +19,14 @@
     ((cond (else result1 result2 ...))
      (begin result1 result2 ...))
     ((cond (test)) test)
+    ((cond (test => result))
+     (let ((temp test))
+       (if temp (result temp))))
+    ((cond (test => result) clause1 clause2 ...)
+     (let ((temp test))
+       (if temp
+           (result temp)
+           (cond clause1 clause2 ...))))
     ((cond (test) clause1 clause2 ...)
      (let ((temp test))
        (if temp

@@ -140,6 +140,25 @@
               '(cond (10))
               env)
              10)))
+
+    (testing "cond with => as last clause"
+      (is (= (scheme-eval
+              '(cond (10 => (lambda (x) (+ 10 x))))
+              env)
+             20)))
+
+    (testing "cond with clauses following =>"
+      (is (= (scheme-eval
+              '(cond (false => (lambda (x) (+ 10 x)))
+                     (true 20))
+              env)
+             20))
+      (is (= (scheme-eval
+              '(cond (10 => (lambda (x) (+ 10 x)))
+                     (true 10))
+              env)
+             20)))
+    ;
     ;(testing "clauses after else"
     ;  (is (thrown-with-msg?
     ;       Exception
