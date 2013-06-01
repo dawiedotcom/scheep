@@ -49,6 +49,13 @@
 (defn fresh-identifier [s-env id]
   (symbol (str id "." (count s-env))))
 
+(defn self-evaluating? [exp]
+  (or (string? exp)
+      (nil? exp)
+      (number? exp)
+      (= true exp)
+      (= false exp)))
+
 ;;;; The global syntactic environment - so that consecutive calls
 ;;;; to expand can use the same macros defined with define-syntax.
 
@@ -106,9 +113,7 @@
         
 (defn expand-expression [exp s-env]
   (cond
-   (or (number? exp)
-       (true? exp)
-       (false? exp)) exp
+   (self-evaluating? exp) exp
    (symbol? exp) (lookup exp s-env)
    (procedure-abstraction? exp) (expand-procedure exp s-env)
    (let-syntax? exp) (expand-let-syntax exp s-env)
@@ -144,9 +149,11 @@
                              identifiers))]
     (defn rewrite-h [exp rewritten]
       (cond
+       (self-evaluating? exp)
+       exp
        ; exp is a symbol
        (symbol? exp)
-       (first (exp new-sub))
+       (first (new-sub exp))
        ; no more forms left in the pattern's rule
        (empty? exp)
        (apply list rewritten)
@@ -161,7 +168,7 @@
        :else (recur
               (rest exp)
               (concat  rewritten
-                       ((first exp) new-sub)))))
+                       (new-sub (first exp))))))
     [(rewrite-h rule (vector))
      s-env-new]))
         

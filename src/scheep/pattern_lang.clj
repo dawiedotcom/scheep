@@ -102,9 +102,10 @@
   ;; does the same as merge, but concats vals that
   ;; correspond to the same key.
   (defn reducer [m1 m2]
+    ;(println "\n" m1 "\n" m2 "\n")
     (if (and m1 m2)
       (let [ks (concat (keys m1) (keys m2))
-            vs (map #(concat (% m1) (% m2)) ks)]
+            vs (map #(concat (m1 %) (m2 %)) ks)]
         (zipmap ks vs))))
   (reduce reducer maps))
 
