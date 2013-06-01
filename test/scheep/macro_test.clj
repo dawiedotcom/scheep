@@ -10,7 +10,7 @@
                              '()
                              '()
                              '())]
-      (is (and (= subs '{a (one), b (two), ... nil, or2 (or2)})
+      (is (and (= subs '{a (one), b (two), or2 (or2)})
                (= rule '(or a b))))
       (is (= (match '(or2 one two three)
                     pattern
@@ -47,14 +47,14 @@
     (let [exp '(syntax-rules ()
                              ((_ a b) (or a b))
                              ((_ a b c) (or a b c)))
-          tau (syntax-rules exp '(def-env))]
+          tau (syntax-rules exp (list))]
       (is (=
-           (tau '(_ one two) '(use-env))
-           '((def-env) {b (two), a (one) ... nil, _ (_)} (or a b))))
+           (tau '(_ one two) (list))
+           '(() {b (two), a (one) , _ (_)} (or a b))))
       (is (=
-           (tau '(_ one two three) '(use-env))
-           '((def-env)
-             {c (three), b (two), a (one), ... nil, _ (_)}
+           (tau '(_ one two three) '())
+           '(()
+             {c (three), b (two), a (one),  _ (_)}
              (or a b c)))))))
 
 ;(expand-let-syntax '(let-syntax ((m  (syntax-rules () ((_ a b) (or a b))))) (m a b)) the-empty-environment)

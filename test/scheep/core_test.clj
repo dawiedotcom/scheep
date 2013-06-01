@@ -153,4 +153,26 @@
   (let [env (setup-environment)]
     (testing "basic let"
       (is (= (scheme-eval '(let ((a 1)) a) env)
+             1))
+      (is (= (scheme-eval '(let ((a 10) (b 1)) b) env)
              1)))))
+
+(deftest test-macro-hygene
+  (let [env (setup-environment)]
+    (testing "let with val and name"
+      (is (= (scheme-eval
+              '(let ((val 10) (name "dave")) val)
+              env)
+             10)))
+    ;(testing "let from MTW"
+    ;  (is (= (scheme-eval
+    ;          '(let-syntax ((push (syntax-rules ()
+    ;                                ((push v x)
+    ;                                 (set! x (cons v x))))))
+    ;             (let ((pros (list "cheap" "fast"))
+    ;                   (cons (list)))
+    ;               (push "unreliable" cons)
+    ;               cons))
+    ;          env)
+    ;         "unreliable")))
+              ))

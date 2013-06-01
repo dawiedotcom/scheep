@@ -1,6 +1,7 @@
 (ns scheep.macro
   (:gen-class)
   (:use
+   [scheep.pattern-lang :only [pattern merge-concat]]
    [scheep.env :only [the-empty-environment
                       the-empty-environment?
                       lookup
@@ -125,18 +126,6 @@
 
 ;;;; The hygenic macro expansion functions from [1]
 
-(defn merge-concat [& maps]
-  ;; assuming each map has only lists as values, this
-  ;; does the same as merge, but concats vals that
-  ;; correspond to the same key.
-  (defn reducer [m1 m2]
-    (if (and m1 m2)
-      (let [ks (concat (keys m1) (keys m2))
-            vs (map #(concat (% m1) (% m2)) ks)]
-        (zipmap ks vs))))
-  (reduce reducer maps))
-
-
 (defn rewrite [rule substitution s-env-def]
   (defn get-ids []
     (let [unique-symbols (distinct (flatten rule))
@@ -192,64 +181,14 @@
              literals
              s-env-use
              s-env-def]
-  (defn literal? [p]
-    (some #{p} literals))
-  (defn same-literal? [p f]
-    (= (lookup p s-env-def)
-       (lookup f s-env-use)))
-    
-  (defn iter [[f & fs :as forms] [p & ps] subs]
-    (cond
-      ; We are done
-      (and (nil? p) (nil? f))
-      subs
-      ; there are unmatched forms. 
-      (nil? p)
-      nil
-      ; Match a list
-      :else
-      (let [p2 (first ps)]
-        (cond
-          ; ellipses. match each elment in forms, and reduce
-          ; to one substitution
-          ; TODO: failed matches will go unnoticed here!!
-          (= p2 '...) 
-          (if (empty? forms)
-            (merge-concat subs {p nil})
-            (apply merge-concat
-                   (cons subs
-                         (map #(iter (list %) (list p) {}) forms))))
-          ; more forms than patterns
-          (and (nil? p2) (not (empty? fs)))
-          nil
-          ; p is an identifier
-          (symbol? p)
-          (let [lit? (literal? p)]
-            (cond
-              ; f and p is the same literal, literals don't
-              ; go into subs
-              (and lit? (same-literal? p f)) 
-              (recur fs ps subs)
-              ; not the same literal
-              (and lit? (not (same-literal? p f)))
-              nil
-              ; p is not a literal and the next p is not ... or .
-              ; match. p should expand to f
-              :else
-              (recur fs ps (assoc subs p (list f)))))
-          ; p is a list
-          (list? p)
-          (let [merged (merge-concat subs (iter f p {}))]
-            (if merged (recur fs ps merged)))
-          ; no matches
-          :else nil))))
-  
-  (let [subs (iter exp-args 
-                   pattern-vars 
-                   {'... nil, macro-name (list macro-name)})]
+  (let [subs (pattern {:form exp-args
+                       :pattern pattern-vars
+                       :literals literals
+                       :use-env s-env-use
+                       :def-env s-env-def
+                       :acc {macro-name (list macro-name)}})]
     (if subs
-      (list subs rewrite-rule);TODO return a vector
-      nil)))
+      (list subs rewrite-rule))))
   
 ;;;; Constructor for transformer functions 
 
@@ -269,5 +208,5 @@
         (conj matcher s-env-def)
         (throw 
           (Exception. 
-            (str "No matching pattern found: " literals " => " patterns)))))))
+            (str "No matching pattern found: " exp " => " patterns)))))))
 
