@@ -105,6 +105,20 @@
               env)
              50)))))
 
+(deftest test-and
+  (let [env (setup-environment)]
+    ;(testing "and without args"
+    ;  (is (= (scheme-eval '(and) env) true)))
+    (testing "and with one arg"
+      ;(is (= (scheme-eval '(and false) env) false))
+      (is (= (scheme-eval '(and 10) env) 10)))
+    ;(testing "and with more than one arg"
+    ;  (is (= (scheme-eval '(and 5 10) env) 10))
+    ;  ;(is (= (scheme-eval '(and 5 false) env) false))
+    ;  ;(is (= (scheme-eval '(and 5 false 10) env) false))
+    ;  (is (= (scheme-eval '(and 5 8 10) env) 10))))
+    ))
+  
 (deftest test-cond
   (let [env (setup-environment)]
     (testing "Cond with only else"

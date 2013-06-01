@@ -14,6 +14,13 @@
      (let ((x test1))
        (if x x (or test2 ...))))))
 
+(define-syntax and
+  (syntax-rules ()
+    ((and) true)
+    ((and test) test)
+    ((and test1 test2 ...)
+     (if test1 (and test2 ...) false))))
+
 (define-syntax cond
   (syntax-rules (else =>)
     ((cond (else result1 result2 ...))
