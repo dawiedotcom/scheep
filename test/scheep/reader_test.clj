@@ -17,10 +17,13 @@
            (symbol "!$%&*+-./:<=>?@^_~"))))
   (testing "lists"
     (is (= (scheme-read-string "(a b c)") '(a b c)))
+    (is (= (scheme-read-string "(a   b   \n  c)") '(a b c)))
     (is (= (scheme-read-string "()") '()))
     (is (= (scheme-read-string "(a (b c))") '(a (b c)))))
   (testing "dotted-lists"
     (is (= (scheme-read-string "(a . b)") '(a b))))
+  (testing "comments with ;"
+    (is (= (scheme-read-string "(a   ; a as first\n b \n c)") '(a b c))))
   (testing "booleans"
     (is (= (scheme-read-string " #t") true))
     (is (= (scheme-read-string " #f") false))))

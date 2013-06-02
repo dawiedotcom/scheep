@@ -3,9 +3,10 @@
   (:use
    [clojure.core :exclude [read-string]]
    [blancas.kern.core :only [<|> <:> <+> <*> >>= >>
-                             run run* alpha-num one-of* value
-                             many1 digit sep-by white-space bind skip-ws
-                             return fwd sym* optional]]
+                             run run* alpha-num one-of* none-of* value
+                             many many1 digit sep-by white-space bind
+                             skip skip-ws return fwd sym* optional
+                             new-line*]]
    [blancas.kern.lexer.basic :only [string-lit parens]]))
 
 ;;; Declarations
@@ -85,7 +86,7 @@
 
 ;;; Lists
 
-(def list-elems= (sep-by white-space scheme-expr))
+(def list-elems= (sep-by (many1 white-space) scheme-expr))
 
 ;; TODO: At the moment a dotted pair will just be a list
 ;;       with two elements, which will probably not preserve the
@@ -101,8 +102,18 @@
   (>>= list=
        #(return (apply list %))))
 
+;;; Comment
+
+(def line-comment (<*> (sym* \;)
+                       (many (none-of* "\n"))
+                       new-line*
+                       (many white-space)))
+
+(def scheme-ws (<|> line-comment
+                    (many white-space)))
+                    
 ;;; The parser
 
 (def scheme-expr
-  (skip-ws (<|> list- number- symbol- string-lit boolean-)))
+  (>> scheme-ws (<|> list- number- symbol- string-lit boolean-)))
 
