@@ -14,4 +14,11 @@
     (is (= (scheme-read-string "a-symbol") 'a-symbol))
     (is (= (scheme-read-string "set!") 'set!))
     (is (= (scheme-read-string "!$%&*+-./:<=>?@^_~") 
-           (symbol "!$%&*+-./:<=>?@^_~")))))
+           (symbol "!$%&*+-./:<=>?@^_~"))))
+  (testing "lists"
+    (is (= (scheme-read-string "(a b c)") '(a b c)))
+    (is (= (scheme-read-string "()") '()))
+    (is (= (scheme-read-string "(a (b c))") '(a (b c)))))
+  (testing "booleans"
+    (is (= (scheme-read-string "#t") true))
+    (is (= (scheme-read-string "#f") false))))

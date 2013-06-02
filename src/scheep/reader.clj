@@ -2,9 +2,10 @@
   (:gen-class)
   (:use
    [clojure.core :exclude [read-string]]
-   [blancas.kern.core :only [<|> <+> >>= run run* alpha-num one-of* value
+   [blancas.kern.core :only [<|> <+> >>= >>
+                             run run* alpha-num one-of* value
                              many1 digit sep-by white-space bind skip-ws
-                             return fwd]]
+                             return fwd sym* optional]]
    [blancas.kern.lexer.basic :only [string-lit parens]]))
 
 ;;;; A scheme reader
@@ -63,16 +64,21 @@
 (def special-char
   (one-of* "!$%&*+-./:<=>?@^_~"))
 
-(def symbol= (many1 (<|> alpha-num special-char)))
+(def symbol= (<+> (many1 (<|> alpha-num special-char))))
 
 ;;; Numbers
 
-(def number= (many1 digit))
+(def number= (<+> (optional (sym* \-))
+                  (many1 digit)))
+
+;;; Booleans
+
+(def boolean= (>> (sym* \#)
+                  (<|> (sym* \t) (sym* \f))))
 
 ;;; Lists
 
-
-(def list-elems= (sep-by white-space scheme-parser))
+(def list-elems= (sep-by white-space (fwd scheme-parser)))
 
 #_(def dotted-list-elms= (bind [car scheme-parser
                               _ (one-of \.)
@@ -85,17 +91,17 @@
 ;;; Helpers
 
 (defn bind-ctor [p ctor]
-  (bind [str (skip-ws (<+> p))]
+  (bind [str (skip-ws p)]
         (return (ctor str))))
 
 (def number- (bind-ctor number= (fn [s] (Integer/parseInt s))))
 (def symbol- (bind-ctor symbol= symbol))
-;(def list- (bind-ctor (parens list=) #(apply list %)))
-(def list- (>>= list= #(return (apply list %))))
+(def list- (bind-ctor list= #(apply list %)))
 ;(def string- (bind-ctor string= identity))
+(def boolean- (>>= boolean= #(return (= % \t))))
 
 ;;; The parser
 
 (def scheme-parser
-  (<|> list- number- symbol- string-lit))
+  (<|> list- number- symbol- string-lit boolean-))
 
