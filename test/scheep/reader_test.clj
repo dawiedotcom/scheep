@@ -19,6 +19,8 @@
     (is (= (scheme-read-string "(a b c)") '(a b c)))
     (is (= (scheme-read-string "()") '()))
     (is (= (scheme-read-string "(a (b c))") '(a (b c)))))
+  (testing "dotted-lists"
+    (is (= (scheme-read-string "(a . b)") '(a b))))
   (testing "booleans"
-    (is (= (scheme-read-string "#t") true))
-    (is (= (scheme-read-string "#f") false))))
+    (is (= (scheme-read-string " #t") true))
+    (is (= (scheme-read-string " #f") false))))

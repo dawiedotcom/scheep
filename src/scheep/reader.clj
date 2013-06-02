@@ -2,27 +2,26 @@
   (:gen-class)
   (:use
    [clojure.core :exclude [read-string]]
-   [blancas.kern.core :only [<|> <+> >>= >>
+   [blancas.kern.core :only [<|> <:> <+> <*> >>= >>
                              run run* alpha-num one-of* value
                              many1 digit sep-by white-space bind skip-ws
                              return fwd sym* optional]]
    [blancas.kern.lexer.basic :only [string-lit parens]]))
 
-;;;; A scheme reader
+;;; Declarations
 
-(declare scheme-parser
-         bind-ctor
-         symbol-
-         number-
-         list-
-         )
+(declare scheme-expr)
+(def scheme-expr (fwd scheme-expr))
+
+;;;; A scheme reader
 
 (defn- str-rest [s]
   (apply str (rest s)))
 
-(defn scheme-read-string [string]
+(defn scheme-read-string 
   "Same as core/read-string, but reads a scheme form"
-  (value scheme-parser string))
+  [string]
+  (value scheme-expr string))
   
 (defn parse-forms [in-string]
   ;; Parses a list of forms from one input string.
@@ -59,49 +58,51 @@
    (parse-forms)
    (map read-string)))
 
+;;; Forward declare scheme-expr
+
 ;;; Symbols
 
-(def special-char
+(def special-char=
   (one-of* "!$%&*+-./:<=>?@^_~"))
 
-(def symbol= (<+> (many1 (<|> alpha-num special-char))))
+(def symbol= (<+> (many1 (<|> alpha-num special-char=))))
+
+(def symbol- (>>= symbol= #(return (symbol %))))
 
 ;;; Numbers
 
 (def number= (<+> (optional (sym* \-))
                   (many1 digit)))
 
+(def number- (>>= number= #(return (Integer/parseInt %))))
+
 ;;; Booleans
 
 (def boolean= (>> (sym* \#)
                   (<|> (sym* \t) (sym* \f))))
 
+(def boolean- (>>= boolean= #(return (= \t %))))
+
 ;;; Lists
 
-(def list-elems= (sep-by white-space (fwd scheme-parser)))
+(def list-elems= (sep-by white-space scheme-expr))
 
-#_(def dotted-list-elms= (bind [car scheme-parser
-                              _ (one-of \.)
-                              cdr scheme-parser]
-                             (return (list car cdr))))
-  
-(def list= (parens list-elems=))
+;; TODO: At the moment a dotted pair will just be a list
+;;       with two elements, which will probably not preserve the
+;;       semantics of cons, car and cdr.
+(def dotted-pair-elms= (<*> scheme-expr
+                            (>> (skip-ws (sym* \.))
+                                scheme-expr)))
+
+(def list= (parens (<|> (<:> dotted-pair-elms=)
+                        list-elems=)))
                    
-
-;;; Helpers
-
-(defn bind-ctor [p ctor]
-  (bind [str (skip-ws p)]
-        (return (ctor str))))
-
-(def number- (bind-ctor number= (fn [s] (Integer/parseInt s))))
-(def symbol- (bind-ctor symbol= symbol))
-(def list- (bind-ctor list= #(apply list %)))
-;(def string- (bind-ctor string= identity))
-(def boolean- (>>= boolean= #(return (= % \t))))
+(def list-
+  (>>= list=
+       #(return (apply list %))))
 
 ;;; The parser
 
-(def scheme-parser
-  (<|> list- number- symbol- string-lit boolean-))
+(def scheme-expr
+  (skip-ws (<|> list- number- symbol- string-lit boolean-)))
 
