@@ -1,6 +1,7 @@
 (ns scheep.macro-test
   (:use clojure.test 
-        scheep.macro))
+        scheep.macro
+        [scheep.core :only [setup-environment]]))
 
 (deftest test-match
   (testing "Match with exp and pattern of the same length"
@@ -41,6 +42,11 @@
       (is (= subs '{vars (a b c) vals (1 2 3) ... () something (something)}))
       (is (= rule '(or vars vals))))))
 
+(deftest test-expand
+  (testing "expanding let"
+    (let [env (setup-environment)]
+      (is (= (expand '(let ((a 1) (b 2)) b))
+             '((lambda (a b) b) 1 2))))))
 
 (deftest test-syntax-rules
   (testing "Syntax rules"

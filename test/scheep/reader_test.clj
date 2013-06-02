@@ -25,6 +25,11 @@
     (is (= (scheme-read-string "(a . b)") '(a b))))
   (testing "comments with ;"
     (is (= (scheme-read-string "(a   ; a as first\n b \n c)") '(a b c))))
+  (testing "peculiar identifiers"
+    (is (= (scheme-read-string "...") '...))
+    (is (= (scheme-read-string "(a ...)") '(a ...)))
+    (is (= (scheme-read-string "-") '-))
+    (is (= (scheme-read-string "+") '+)))
   (testing "booleans"
     (is (= (scheme-read-string " #t") true))
     (is (= (scheme-read-string " #f") false))))

@@ -8,7 +8,7 @@
 
 (define-syntax or
   (syntax-rules ()
-    ((_) false)
+    ((_) #f)
     ((_ test) test)
     ((_ test1 test2 ...)
      (let ((x test1))
@@ -16,10 +16,10 @@
 
 (define-syntax and
   (syntax-rules ()
-    ((and) true)
+    ((and) #t)
     ((and test) test)
     ((and test1 test2 ...)
-     (if test1 (and test2 ...) false))))
+     (if test1 (and test2 ...) #f))))
 
 (define-syntax cond
   (syntax-rules (else =>)

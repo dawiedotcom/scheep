@@ -64,3 +64,6 @@
                 :pattern '((var val) ...)
                 :form '((a b) (c d))))
              '{var (a c) val (b d) ... ()})))))
+
+;(deftest test-let
+  ;(testing "
