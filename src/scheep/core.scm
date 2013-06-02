@@ -1,6 +1,11 @@
-
+;;
+;; Scheme forms and procedures that can be written
+;; in terms of forms and procedures defined in the
+;; interpreter.
+;;
 
 (define-syntax let
+  ;; The let special form
   (syntax-rules ()
     ((let ((name val) ...) body1 body2 ...)
      ((lambda (name ...) body1 body2 ...)

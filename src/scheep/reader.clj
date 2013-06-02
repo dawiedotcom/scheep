@@ -5,8 +5,8 @@
    [blancas.kern.core :only [<|> <:> <+> <*> >>= >> <<
                              run run* alpha-num one-of* none-of* value
                              many many1 digit sep-by white-space bind
-                             skip skip-ws return fwd sym* optional
-                             new-line* print-error parse token*
+                             skip skip-many skip-ws return fwd sym* optional
+                             new-line* print-error parse token* any-char eof
                              not-followed-by parse-file]]
    [blancas.kern.lexer.basic :only [string-lit parens]]))
 
@@ -100,11 +100,10 @@
 
 (def spaces (many white-space))
 
-(def line-comment (<*> spaces
+(def line-comment (<*> (optional spaces)
                        (sym* \;)
                        (many (none-of* "\n"))
-                       new-line*
-                       spaces))
+                       new-line*))
 
 (def scheme-ws (<|> (<:> line-comment)
                     spaces))
@@ -112,12 +111,13 @@
 ;;; Scheme expressions
 
 (def scheme-expr
-  (>> scheme-ws (<|> list-
-                     (<:> peculiar-symbol-)
-                     number-
-                     symbol-
-                     string-lit
-                     boolean-)))
+  (>> (skip-many scheme-ws)
+      (<|> list-
+           (<:> peculiar-symbol-)
+           number-
+           symbol-
+           string-lit
+           boolean-)))
 
 (def scheme-expr+
   (many1 scheme-expr))

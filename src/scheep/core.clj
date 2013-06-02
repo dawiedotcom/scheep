@@ -7,7 +7,8 @@
                       define-variable!
                       set-variable-value!
                       lookup-variable-value]]
-   [scheep.reader :only [scheme-read-file]]
+   [scheep.reader :only [scheme-read-file
+                         scheme-read-string]]
    [scheep.macro :only [expand]]))
 
 ;;;; Forward declarations
@@ -250,12 +251,13 @@
   
 (defn driver-loop [global-env]
   (prompt-for-input input-prompt)
-  (let [input (read *in* false nil)]
-    (if (or input (false? input))
-      (let [ output (scheme-eval input global-env)]
+  (let [input (read-line)] 
+    (if input
+      (let [input-form (scheme-read-string input)
+            output (scheme-eval input-form global-env)]
         (print-output output-prompt output)
         (recur global-env))
-      (println))))
+      (println "\nbye."))))
     
 
 (defn scheme-load [filename env]
