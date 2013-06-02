@@ -19,7 +19,8 @@
     (is (= (scheme-read-string "(a b c)") '(a b c)))
     (is (= (scheme-read-string "(a   b   \n  c)") '(a b c)))
     (is (= (scheme-read-string "()") '()))
-    (is (= (scheme-read-string "(a (b c))") '(a (b c)))))
+    (is (= (scheme-read-string "(a (b c))") '(a (b c))))
+    (is (= (scheme-read-string "(a (b c) d)") '(a (b c) d))))
   (testing "dotted-lists"
     (is (= (scheme-read-string "(a . b)") '(a b))))
   (testing "comments with ;"

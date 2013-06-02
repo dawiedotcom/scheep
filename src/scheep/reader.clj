@@ -86,7 +86,7 @@
 
 ;;; Lists
 
-(def list-elems= (sep-by (many1 white-space) scheme-expr))
+(def list-elems= (many scheme-expr))
 
 ;; TODO: At the moment a dotted pair will just be a list
 ;;       with two elements, which will probably not preserve the
@@ -104,13 +104,16 @@
 
 ;;; Comment
 
-(def line-comment (<*> (sym* \;)
+(def spaces (many white-space))
+
+(def line-comment (<*> spaces
+                       (sym* \;)
                        (many (none-of* "\n"))
                        new-line*
-                       (many white-space)))
+                       spaces))
 
-(def scheme-ws (<|> line-comment
-                    (many white-space)))
+(def scheme-ws (<|> (<:> line-comment)
+                    spaces))
                     
 ;;; The parser
 
