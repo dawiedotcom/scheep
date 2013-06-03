@@ -3,10 +3,10 @@
   (:use
    [clojure.core :exclude [read-string]]
    [blancas.kern.core :only [<|> <:> <+> <*> >>= >> <<
-                             run run* alpha-num one-of* none-of* value
-                             many many1 digit sep-by white-space bind
-                             skip skip-many skip-ws return fwd sym* optional
-                             new-line* print-error parse token* any-char eof
+                             alpha-num one-of* none-of* 
+                             many many1 digit white-space 
+                             skip-many skip-ws return fwd sym* optional
+                             new-line* print-error parse token* 
                              not-followed-by parse-file]]
    [blancas.kern.lexer.basic :only [string-lit parens]]))
 
@@ -59,23 +59,23 @@
                            (<< (token* "-")
                                (not-followed-by digit))))
 
-(def symbol- (>>= symbol= #(return (symbol %))))
+(def ->symbol (>>= symbol= #(return (symbol %))))
 
-(def peculiar-symbol- (>>= peculiar-symbol= #(return (symbol %))))
+(def ->peculiar-symbol (>>= peculiar-symbol= #(return (symbol %))))
 
 ;;; Numbers
 
 (def number= (<+> (optional (sym* \-))
                   (many1 digit)))
 
-(def number- (>>= number= #(return (Integer/parseInt %))))
+(def ->number (>>= number= #(return (Integer/parseInt %))))
 
 ;;; Booleans
 
 (def boolean= (>> (sym* \#)
                   (<|> (sym* \t) (sym* \f))))
 
-(def boolean- (>>= boolean= #(return (= \t %))))
+(def ->boolean (>>= boolean= #(return (= \t %))))
 
 ;;; Lists
 
@@ -92,7 +92,7 @@
 (def list= (parens (<|> (<:> dotted-pair-elms=)
                         list-elems=)))
                    
-(def list-
+(def ->list
   (>>= list=
        #(return (apply list %))))
 
@@ -106,10 +106,10 @@
 (defn bind-symbol-in-head [symbol p]
   (>>= p #(return (list symbol %))))
 
-(def quote- (bind-symbol-in-head 'quote quote=))
-(def quasiquote- (bind-symbol-in-head 'quasiquote quasiquote=))
-(def unquote- (bind-symbol-in-head 'unquote unquote=))
-(def unquote-splicing- (bind-symbol-in-head
+(def ->quote (bind-symbol-in-head 'quote quote=))
+(def ->quasiquote (bind-symbol-in-head 'quasiquote quasiquote=))
+(def ->unquote (bind-symbol-in-head 'unquote unquote=))
+(def ->unquote-splicing (bind-symbol-in-head
                         'unquote-splicing
                         unquote-splicing=))
 
@@ -129,16 +129,16 @@
 
 (def scheme-expr
   (>> (skip-many scheme-ws)
-      (<|> list-
-           (<:> peculiar-symbol-)
-           number-
-           symbol-
+      (<|> ->list
+           (<:> ->peculiar-symbol)
+           ->number
+           ->symbol
            string-lit
-           boolean-
-           quote-
-           quasiquote-
-           (<:> unquote-splicing-)
-           unquote-)))
+           ->boolean
+           ->quote
+           ->quasiquote
+           (<:> ->unquote-splicing)
+           ->unquote)))
 
 (def scheme-expr+
   (many1 scheme-expr))
