@@ -32,4 +32,9 @@
     (is (= (scheme-read-string "+") '+)))
   (testing "booleans"
     (is (= (scheme-read-string " #t") true))
-    (is (= (scheme-read-string " #f") false))))
+    (is (= (scheme-read-string " #f") false)))
+  (testing "quote etc."
+    (is (= (scheme-read-string "'x") '(quote x)))
+    (is (= (scheme-read-string "`x") '(quasiquote x)))
+    (is (= (scheme-read-string ",x") '(unquote x)))
+    (is (= (scheme-read-string ",@x") '(unquote-splicing x)))))

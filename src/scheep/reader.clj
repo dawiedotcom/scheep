@@ -96,6 +96,23 @@
   (>>= list=
        #(return (apply list %))))
 
+;;; Quote, quasiquote, unquote and unquote-splicing
+
+(def quote= (>> (sym* \') scheme-expr))
+(def quasiquote= (>> (sym* \`) scheme-expr))
+(def unquote= (>> (sym* \,) scheme-expr))
+(def unquote-splicing= (>> (sym* \,) (sym* \@) scheme-expr))
+
+(defn bind-symbol-in-head [symbol p]
+  (>>= p #(return (list symbol %))))
+
+(def quote- (bind-symbol-in-head 'quote quote=))
+(def quasiquote- (bind-symbol-in-head 'quasiquote quasiquote=))
+(def unquote- (bind-symbol-in-head 'unquote unquote=))
+(def unquote-splicing- (bind-symbol-in-head
+                        'unquote-splicing
+                        unquote-splicing=))
+
 ;;; Comment
 
 (def spaces (many white-space))
@@ -117,7 +134,11 @@
            number-
            symbol-
            string-lit
-           boolean-)))
+           boolean-
+           quote-
+           quasiquote-
+           (<:> unquote-splicing-)
+           unquote-)))
 
 (def scheme-expr+
   (many1 scheme-expr))
