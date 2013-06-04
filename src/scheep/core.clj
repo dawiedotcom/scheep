@@ -2,14 +2,15 @@
   (:gen-class)
   (:use
    [scheep.env :only [extend-environment
-                      the-empty-environment
-                      the-empty-environment?
                       define-variable!
                       set-variable-value!
                       lookup-variable-value]]
    [scheep.reader :only [scheme-read-file
                          scheme-read-string]]
-   [scheep.macro :only [expand]]))
+   [scheep.macro :only [expand]]
+   [scheep.primitives :only [primitive-procedure?
+                             apply-primitive-procedure
+                             the-primitive-environment]]))
 
 ;;;; Forward declarations
 
@@ -149,15 +150,6 @@
 (defn scheme-false? [x]
   (= x false))
 
-;;;; Primitive procedures
-
-(defrecord primitive-procedure [implementation])
-(defn primitive-procedure? [p] (instance? primitive-procedure p))
-(defn apply-primitive-procedure [proc args]
-  (apply
-   (.implementation proc)
-   args))
-
 ;;;; Compound procedures
 
 (defrecord compound-procedure [parameters body env])
@@ -203,35 +195,9 @@
 ;;;; REPL ;;;;
 
 ;;;; The global environment
-
-(def primitive-procedures
-  (list (list 'car first)
-        (list 'cdr rest)
-        (list 'null? empty?)
-        (list 'cons cons)
-        (list '+ +)
-        (list '- -)
-        (list '* *)
-        (list '/ /)
-        (list '= =)
-        (list '> >)
-        (list '< <)
-        (list 'load scheme-load)
-        (list 'list list)
-        (list 'display print)
-        (list 'newline (fn [] (println)))))
-
-(defn primitive-procedure-names [] (map first primitive-procedures))
-(defn primitive-procedure-objects []
-  (map (fn [[_ p]] (primitive-procedure. p))
-       primitive-procedures))
-  
+ 
 (defn setup-environment []
-  (let [initial-env
-        (extend-environment
-         the-empty-environment
-         (primitive-procedure-names)
-         (primitive-procedure-objects))]
+  (let [initial-env (the-primitive-environment)]
     (define-variable! initial-env 'true true)
     (define-variable! initial-env 'false false)
     (scheme-load "src/scheep/core.scm" initial-env)
