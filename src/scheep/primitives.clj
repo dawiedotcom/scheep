@@ -4,6 +4,11 @@
    [scheep.env :only [extend-environment
                       the-empty-environment]]))
 
+;;; Scheme's standard procedures that are implemented in terms
+;;; of clojure functions. See
+;;; [1]: http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-9.html
+;;; [2]: http://en.wikipedia.org/wiki/Scheme_programming_language#Standard_procedures
+
 ;;; A representation of primitive procedures
 
 (defrecord primitive-procedure [implementation])
@@ -42,8 +47,10 @@
    ;'load scheme-load
    'list list
    'display print
-   'newline (fn [] (println))
-   'cons cons
+   'newline #(println)
+   'cons #(cons %1 (if (seq? %2)
+                     %2
+                     (list %2)))
    })
 
 ;;; Helpers
