@@ -25,11 +25,6 @@
          
 ;;;; Expression Types ;;;;
 
-(defn tagged-list? [exp tag]
-  (if (list? exp)
-      (= (first exp) tag)
-      false))
-  
 (defmulti eval-form (fn [[op] env] op))
 
 ;;;; Self evaluating expressions
@@ -88,57 +83,32 @@
     (scheme-eval-fn consequent env)
     (scheme-eval-fn alternative env)))
 
-(defn make-if [predicate consequent alternative]
-  (list 'if predicate consequent alternative))
-
 ;;;; Lambda expressions
 (defmethod eval-form 'lambda [[_ parameters & body] env]
   #(make-compound-procedure
-   parameters
-   body
-   env))
+    parameters
+    body
+    env))
 
 ;;;; Begin
 
 (defn last-exp? [exps] (empty? (rest exps)))
-(defn first-exp [[exp]] exp)
-(defn rest-exp [[_ & rest]] rest)
 
 (defn eval-sequence [exps env]
-  ;(list-of-values (butlast exps) env)
   (loop [es exps]
     (if (last-exp? es)
-      (scheme-eval-fn (first-exp es) env)
+      (scheme-eval-fn (first es) env)
       (do
-        (scheme-eval (first-exp es) env)
-        (recur (rest-exp es))))))
+        (scheme-eval (first es) env)
+        (recur (rest es))))))
 
-  ;(last (list-of-values exps env)))
-        
 (defmethod eval-form 'begin [[_ & exprs] env]
   (eval-sequence exprs env))
 
-(defn make-begin [seq]
-  (conj seq 'begin))
-
-#_(defn sequence->exp [[first-exp & rest-exps]]
-  ;; Wraps a sequence of expressions in a begin expression
-  (cond
-   (nil? first-exp) '()
-   (nil? rest-exps) first-exp
-   :else (make-begin seq)))
-  
 ;;;; Procedure application
-
-(defn application? [exp]
-  (list? exp))
 
 (defn operator [[opr]] opr)
 (defn operands [[_ & args]] args)
-
-(defn no-operands? [ops] (empty? ops))
-(defn first-operand [[op]] op)
-(defn rest-operands [[_ & ops]] ops)
 
 (defmethod eval-form :default [exp env]
   #(scheme-apply
@@ -168,7 +138,11 @@
   (map #(scheme-eval % env) exps))
 
 
-(defn scheme-eval-fn [exp env]
+(defn scheme-eval-fn
+  "Returns a fn of no arguments that returns the result
+   of evaluating the scheme expression exp in the environent
+   env"
+  [exp env]
   (let [expanded-exp (expand exp)]
     (cond 
       (self-evaluating? expanded-exp) (fn [] expanded-exp)
@@ -176,12 +150,16 @@
       :else 
       (eval-form expanded-exp env))))
 
-(defn scheme-eval [exp env]
+(defn scheme-eval
+  "Evaluates the scheme expression exp in the environment env"
+  [exp env]
   (trampoline scheme-eval-fn exp env))
 
 ;;;; Apply ;;;;
 
-(defn scheme-apply [procedure arguments]
+(defn scheme-apply
+  "Applies a scheme procedure to a list of arguments"
+  [procedure arguments]
   (cond (primitive-procedure? procedure) (apply-primitive-procedure
                                           procedure
                                           arguments)
