@@ -208,3 +208,16 @@
     ;          env)
     ;         "unreliable")))
               ))
+
+(deftest test-tco
+  (testing "tco to 10000"
+    (is (= (scheme-eval
+            '(begin
+              (define (times n)
+                (if (= n 0)
+                  0
+                  (times (- n 1))))
+              (times 10000))
+            the-global-environment)
+           0))))
+

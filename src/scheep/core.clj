@@ -15,6 +15,7 @@
 ;;;; Forward declarations
 
 (declare scheme-eval
+         scheme-eval-fn
          scheme-apply
          scheme-load
          scheme-true?
@@ -49,7 +50,7 @@
 
 ;;;; Quotes
 (defmethod eval-form 'quote [[_ text-of-quotation] env]
-  text-of-quotation)
+  (fn [] text-of-quotation))
   
 ;;; Assignment
 (defmethod eval-form 'set! [[_ variable value] env]
@@ -57,7 +58,7 @@
    env
    variable
    (scheme-eval value env))
-  'ok)
+  (fn [] 'ok))
   
 ;;;; Definitions
 (defn procedure-definition? [variable]
@@ -79,20 +80,20 @@
         env
         variable
         (scheme-eval value env)))
-    'ok))
+    (fn [] 'ok)))
 
 ;;;; Conditionals
 (defmethod eval-form 'if [[_ predicate consequent alternative] env]
   (if (scheme-true? (scheme-eval predicate env))
-    (scheme-eval consequent env)
-    (scheme-eval alternative env)))
+    (scheme-eval-fn consequent env)
+    (scheme-eval-fn alternative env)))
 
 (defn make-if [predicate consequent alternative]
   (list 'if predicate consequent alternative))
 
 ;;;; Lambda expressions
 (defmethod eval-form 'lambda [[_ parameters & body] env]
-  (make-compound-procedure
+  #(make-compound-procedure
    parameters
    body
    env))
@@ -104,7 +105,15 @@
 (defn rest-exp [[_ & rest]] rest)
 
 (defn eval-sequence [exps env]
-  (last (list-of-values exps env)))
+  ;(list-of-values (butlast exps) env)
+  (loop [es exps]
+    (if (last-exp? es)
+      (scheme-eval-fn (first-exp es) env)
+      (do
+        (scheme-eval (first-exp es) env)
+        (recur (rest-exp es))))))
+
+  ;(last (list-of-values exps env)))
         
 (defmethod eval-form 'begin [[_ & exprs] env]
   (eval-sequence exprs env))
@@ -112,7 +121,7 @@
 (defn make-begin [seq]
   (conj seq 'begin))
 
-(defn sequence->exp [[first-exp & rest-exps]]
+#_(defn sequence->exp [[first-exp & rest-exps]]
   ;; Wraps a sequence of expressions in a begin expression
   (cond
    (nil? first-exp) '()
@@ -132,7 +141,7 @@
 (defn rest-operands [[_ & ops]] ops)
 
 (defmethod eval-form :default [exp env]
-  (scheme-apply
+  #(scheme-apply
     (scheme-eval (operator exp) env)
     (list-of-values (operands exp) env)))
 
@@ -158,13 +167,17 @@
 (defn list-of-values [exps env]
   (map #(scheme-eval % env) exps))
 
-(defn scheme-eval [exp env]
+
+(defn scheme-eval-fn [exp env]
   (let [expanded-exp (expand exp)]
     (cond 
-      (self-evaluating? expanded-exp) expanded-exp
-      (variable? expanded-exp) (lookup-variable-value expanded-exp env)
+      (self-evaluating? expanded-exp) (fn [] expanded-exp)
+      (variable? expanded-exp) #(lookup-variable-value expanded-exp env)
       :else 
       (eval-form expanded-exp env))))
+
+(defn scheme-eval [exp env]
+  (trampoline scheme-eval-fn exp env))
 
 ;;;; Apply ;;;;
 
