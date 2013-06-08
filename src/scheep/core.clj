@@ -104,12 +104,7 @@
 (defn rest-exp [[_ & rest]] rest)
 
 (defn eval-sequence [exps env]
-  (loop [es exps]
-    (if (last-exp? es)
-        (scheme-eval (first-exp es) env)
-        (do
-          (scheme-eval (first-exp es) env)
-          (recur (rest-exp es))))))
+  (last (list-of-values exps env)))
         
 (defmethod eval-form 'begin [[_ & exprs] env]
   (eval-sequence exprs env))
@@ -161,13 +156,7 @@
 ;;;; Eval ;;;;
     
 (defn list-of-values [exps env]
-  (loop [es exps
-         acc (list)]
-    (if (no-operands? es)
-        (reverse acc)
-        (recur (rest-operands es)
-               (cons (scheme-eval (first-operand es) env)
-                     acc)))))
+  (map #(scheme-eval % env) exps))
 
 (defn scheme-eval [exp env]
   (let [expanded-exp (expand exp)]
