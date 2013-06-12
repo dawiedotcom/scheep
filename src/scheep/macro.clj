@@ -157,6 +157,11 @@
        ; no more forms left in the pattern's rule
        (empty? exp)
        (apply list rewritten)
+       ; check for lists in the substitution, this only happens
+       ; when (a b) ... expands to nothing.
+       (and (list? (first exp))
+            (contains? new-sub (first exp)))
+       (new-sub (first exp))
        ; expand recursively into a list 
        (list? (first exp))
        (recur
@@ -165,10 +170,11 @@
                 (vector
                  (rewrite-h (first exp) (vector)))))
        ; expand the next form in the rule
-       :else (recur
-              (rest exp)
-              (concat  rewritten
-                       (new-sub (first exp))))))
+       :else 
+       (recur
+         (rest exp)
+         (concat rewritten
+                 (new-sub (first exp))))))
     [(rewrite-h rule (vector))
      s-env-new]))
         

@@ -51,9 +51,18 @@
   [{form :form [p] :pattern subs :acc :as arg-map}]
   "Match the rest of the forms against the first pattern"
   (if (empty? form)
-    (merge-concat subs {p nil '... nil})
+    (merge-concat subs
+                  (if (list? p)
+                    ; if p is a list and form is empty, all the 
+                    ; patterns in p should expand to nothing.
+                    (apply merge
+                           (cons {p nil}
+                                 (map (fn [i] {i nil}) p)))
+                    ; p is an identifier, should expand to nothing.
+                    {p nil '... nil}))
+    ;; all the forms in forms should be matched by p
     (apply merge-concat
-           (cons subs
+           (cons subs 
                  (map #(pattern
                         (next-pattern arg-map (list %) (list p) {'... nil}))
                       form)))))

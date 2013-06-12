@@ -189,6 +189,14 @@
       (is (= (scheme-eval '(let ((a 10) (b 1)) b) env)
              1)))))
 
+(deftest test-let*
+  (let [env (setup-environment)]
+    (testing "basic let*"
+      (is (= (scheme-eval '(let* ((a 1)) a) env)
+             1))
+      (is (= (scheme-eval '(let* ((a 10) (b a)) b) env)
+             10)))))
+
 (deftest test-macro-hygene
   (let [env (setup-environment)]
     (testing "let with val and name"
