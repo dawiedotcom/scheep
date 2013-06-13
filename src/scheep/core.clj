@@ -48,11 +48,13 @@
   (fn [] text-of-quotation))
   
 ;;; Assignment
-(defmethod eval-form 'set! [[_ variable value] env]
+(defmethod eval-form 'set! [[_ variable value :as exp] env]
+  (if (self-evaluating? variable)
+    (throw (ex-info "Cannot set! a constant:" {:cause exp})))
   (set-variable-value!
-   env
-   variable
-   (scheme-eval value env))
+    env
+    variable
+    (scheme-eval value env))
   (fn [] 'ok))
   
 ;;;; Definitions
@@ -129,6 +131,9 @@
 (defrecord compound-procedure [parameters body env])
 (defn make-compound-procedure [params body env]
   ; this will have to do since we cannot declare record names..
+  (if-not (= (distinct params) params)
+    (throw (ex-info "Procedure parameters must be unique:" 
+                    {:cause (list 'lambda params '...)})))
   (compound-procedure. params body env))
 (defn compound-procedure? [p] (instance? compound-procedure p))
 
@@ -199,9 +204,12 @@
   (prompt-for-input input-prompt)
   (let [input (read-line)] 
     (if input
-      (let [input-form (scheme-read-string input)
-            output (scheme-eval input-form global-env)]
-        (print-output output-prompt output)
+      (let [input-form (scheme-read-string input)]
+        (try
+          (let [output (scheme-eval input-form global-env)]
+            (print-output output-prompt output))
+          (catch clojure.lang.ExceptionInfo ex 
+            (println ";Error: " (.getMessage ex) (:cause (ex-data ex)))))
         (recur global-env))
       (println "\nbye."))))
     

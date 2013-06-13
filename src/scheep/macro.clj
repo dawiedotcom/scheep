@@ -189,12 +189,13 @@
         s-env-diverted (divert s-env-use s-env-new)]
     (expand-expression transcribed-exp s-env-diverted)))
 
-(defn match [[macro-name & exp-args]
+(defn match [[macro-name & exp-args :as exp]
              [[_ & pattern-vars] rewrite-rule]
              literals
              s-env-use
              s-env-def]
   (let [subs (pattern {:form exp-args
+                       :exp exp
                        :pattern pattern-vars
                        :literals literals
                        :use-env s-env-use
@@ -220,6 +221,5 @@
       (if matcher
         (conj matcher s-env-def)
         (throw 
-          (Exception. 
-            (str "No matching pattern found: " exp " => " patterns)))))))
+          (ex-info "No matching pattern found:" {:cause exp}))))))
 

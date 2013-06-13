@@ -18,8 +18,7 @@
          merge-concat)
 
 (defmulti pattern
-  (fn [{[_ pattern2] :pattern :as map}] 
-    ;(println "\n== pattern\n map = \n" map)
+  (fn [{[_ pattern2] :pattern}] 
     pattern2))
 
 (defmulti concrete-pattern
@@ -50,6 +49,8 @@
   '...
   [{form :form [p] :pattern subs :acc :as arg-map}]
   "Match the rest of the forms against the first pattern"
+  (if-not (or (list? form) (nil? form))
+    (throw (ex-info "Ill formed special form:" {:cause (:exp arg-map)})))
   (if (empty? form)
     (merge-concat subs
                   (if (list? p)
@@ -83,9 +84,12 @@
 
 (defmethod concrete-pattern
   java.util.Collection
-  [{[f & fs] :form [p & ps] :pattern subs :acc :as map}]
+  [{form :form [p & ps] :pattern subs :acc :as map}]
   "first pattern is a list, match recursively into the tree"
-  (let [recur-map (next-pattern map f p {})
+  (if-not (list? form)
+    (throw (ex-info "Ill formed special form:" {:cause form})))
+  (let [[f & fs] form
+        recur-map (next-pattern map f p {})
         merged (merge-concat subs (pattern recur-map))]
     (if merged
       (pattern (next-pattern map fs ps merged)))))

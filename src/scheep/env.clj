@@ -43,8 +43,9 @@
     (lookup env)))
 
 (defn throw-var-not-found [var]
-  (throw (Exception.
-          (str "Variable " var " is not defined."))))
+  (throw (ex-info
+          "Variable is not defined:"
+          {:cause var})))
 
 ;;;; Lexical environments - for the evaluator
 
