@@ -1,7 +1,8 @@
 (ns scheep.pattern-lang
   (:gen-class)
   (:use
-   [scheep.env :only [lookup]]))
+   [scheep.env :only [lookup]]
+   [clojure.core.unify :only [unify subst]]))
 
 ;;; Implementation for scheme's pattern language used in
 ;;; syntax-rules
@@ -40,7 +41,136 @@
       
 ;;; Defaults
 
-(defmethod pattern :default [args] (concrete-pattern args))
+;;; Expanding ellipsis
+
+(defmulti map-form (fn [func form] (class form)))
+(defmethod map-form :default [func form] form)
+(defmethod map-form clojure.lang.Symbol [func form]
+  (func form))
+
+(defmethod map-form java.util.Collection [func form]
+  ;"Applies func recursively to each symbol in form"
+  ;[func form] 
+  (loop [[f & fs] form
+         acc []]
+    (if (nil? f)
+      (apply list acc)
+      (recur fs (conj acc (map-form func f))))))
+     ;(symbol? f) (recur fs (conj acc (map-form func f)))
+     ;(list? f) (recur fs (conj acc (map-form func f)))
+     ;:else (recur fs (conj acc f)))))
+         
+(defn rename
+  "Append suffix to each symbol in form"
+  [form suffix]
+  (map-form #(symbol (str % "-#" suffix)) form))
+  
+(defn ?+ [pattern]
+  (map-form #(symbol (str "?" %)) pattern))
+     
+;(defmulti expand (fn [p n] (class p)))
+;
+;(defmethod expand clojure.lang.Symbol [p n]
+;  (map #(symbol (str p "#" %)) (range n)))
+;  ;(rename (repeat n p)
+;
+;(defmethod expand java.util.Collection [p n]
+
+(defn expand [form n]
+  (let [forms (repeat n form)
+        new-names (range n)]
+    (map rename forms new-names)))
+
+(defn expanded-count [pattern n]
+  (if (list? pattern)
+    (into {} (map vector
+                  (flatten pattern) 
+                  (repeat n)))
+    {pattern n}))
+  
+(defn expand-pattern-1 [pattern form]
+  (let [vec-pattern (vec pattern)]
+    (if (= (peek vec-pattern) '...)
+      (let [rest-1 (pop vec-pattern)
+            p  (peek rest-1)
+            rest (pop rest-1)
+            n (- (count form) (count rest))]
+        {:pattern (concat rest (expand p n))
+         :n (expanded-count p n)})
+      {:pattern pattern
+       :n {}})))
+
+(defn first-symbol [p]
+  (if (symbol? p)
+    p
+    (first-symbol (first p))))
+
+(defn expand-rule-1 [rule count-map]
+  (let [vec-rule (vec rule)]
+    (if (= (peek vec-rule) '...)
+      (let [rest-1 (pop vec-rule)
+            p  (peek rest-1)
+            rest (pop rest-1)
+            n (count-map (first-symbol p))]
+        (concat rest (expand p n)))
+      rule)))
+
+(defn expand-rule [rule count-map]
+  ;(defn map-helper [elem]
+  ;  (if (sequential? elem)
+  ;    (expand-rule-1 elem count-map)
+  ;    elem))
+  ;(map map-helper rule))
+  (loop [[r & rs] (expand-rule-1 rule count-map)
+         acc []]
+    (cond
+     (nil? r) (apply list acc)
+     (list? r) (recur rs (conj acc (expand-rule r count-map)))
+     :else (recur rs (conj acc r)))))
+
+(defn expand-pattern [pattern form]
+  (let [{new-pattern :pattern
+         counts :n} (expand-pattern-1 pattern form)]
+    (loop [[p & ps] new-pattern
+           [f & fs] form
+           count-map counts
+           acc []]
+      (cond
+       (nil? p) [(apply list acc) count-map]
+
+       (and (list? p) (list? f))
+       (let [[acc- count-map-] (expand-pattern p f)]
+         (recur ps
+                fs
+                (merge count-map count-map-)
+                (conj acc acc-)))
+
+       :else
+       (recur ps fs count-map (conj acc p))))))
+
+(defn expand-ellipsis [pattern rule form]
+  (let [[new-pattern count-map] (expand-pattern pattern form)
+        new-rule (expand-rule rule count-map)]
+    [new-pattern new-rule]))
+
+(defn get-pattern
+  [form [pattern rule]]
+  (println "get-pattern: \n" pattern "\n" rule "\n" form)
+  (let [[new-pattern new-rule] (expand-ellipsis pattern rule form)]
+    (list (unify (?+ new-pattern) form) new-rule)))
+
+(defn sub [pattern rule form]
+  (let [[new-pattern new-rule] (expand-ellipsis pattern rule form)
+        sub-map (unify (?+ new-pattern) form)]
+    ;(println sub-map)
+    (if sub-map
+      (subst (?+ new-rule) sub-map))))
+    ;(let [transcribed (subst (?+ new-rule) sub-map)]
+    ;  transcribed)))
+        
+
+;(defmethod pattern :default [args] (concrete-pattern args))
+(defmethod pattern :default [{form :form pattern :pattern :as args}] )
 (defmethod concrete-pattern :default [args] nil)
 
 ;;; Pattern

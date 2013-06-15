@@ -1,7 +1,8 @@
 (ns scheep.macro
   (:gen-class)
   (:use
-   [scheep.pattern-lang :only [pattern merge-concat]]
+   [clojure.core.unify :only [subst]]
+   [scheep.pattern-lang :only [?+ get-pattern pattern merge-concat]]
    [scheep.env :only [the-empty-environment
                       the-empty-environment?
                       lookup
@@ -147,7 +148,8 @@
                         fresh-identifiers
                         (map #(lookup % s-env-def)
                              identifiers))]
-    (defn rewrite-h [exp rewritten]
+    (println "\nrewrite: \n" rule "\n" substitution)
+    #_(defn rewrite-h [exp rewritten]
       (cond
        (self-evaluating? exp)
        exp
@@ -175,7 +177,8 @@
          (rest exp)
          (concat rewritten
                  (new-sub (first exp))))))
-    [(rewrite-h rule (vector))
+    [#_(rewrite-h rule (vector))
+     (subst (?+ rule) substitution)
      s-env-new]))
         
 (defn transcribe [exp s-env-use]
@@ -212,7 +215,11 @@
   ;     (s-env-def substitution rewrite-rule)
   (fn [exp s-env-use]
     (let [matcher 
-          (some #(match exp
+          (some #(get-pattern exp
+                              %)
+                patterns)
+
+          #_(some #(match exp
                         %
                         literals
                         s-env-use
