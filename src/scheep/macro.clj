@@ -44,8 +44,8 @@
 (defn application? [exp]
   (list? exp))
 
-(defn procedure-abstraction? [[lamb]]
-  (= lamb 'lambda))
+(defn procedure-abstraction? [[lamb] s-env]
+  (= (lookup lamb s-env) 'lambda))
 
 (defn fresh-identifier [s-env id]
   (symbol (str id "." (count s-env))))
@@ -85,6 +85,7 @@
   (cons 'lambda (cons params body)))
 
 (defn expand-procedure [[_ args & body] s-env]
+  #_(println "expand-procedure: (lambda " args body ")")
   (if (the-empty-environment? s-env)
     (apply make-lambda (cons args body))
     (let [fresh-args (map #(fresh-identifier s-env %) args)
@@ -113,10 +114,11 @@
 ;;;; Macro expansion 
         
 (defn expand-expression [exp s-env]
+  #_(println "expand-expression: " exp "\n")
   (cond
    (self-evaluating? exp) exp
    (symbol? exp) (lookup exp s-env)
-   (procedure-abstraction? exp) (expand-procedure exp s-env)
+   (procedure-abstraction? exp s-env) (expand-procedure exp s-env)
    (let-syntax? exp) (expand-let-syntax exp s-env)
    (macro-call? exp s-env) (transcribe exp s-env)
    (application? exp) (expand-application exp s-env)
@@ -134,51 +136,36 @@
 
 (defn rewrite [rule substitution s-env-def]
   (defn get-ids []
-    (let [unique-symbols (distinct (flatten rule))
+    (let [rule- (if (list? rule) rule (list rule))
+          unique-symbols (distinct (flatten rule-))
           pattern-vars (keys substitution)]
+      #_(println "get-ids: \n"
+               "  unique-symbols: " unique-symbols "\n")
       (remove #(some #{%} pattern-vars)
               unique-symbols)))
   (let [identifiers (doall (get-ids))
         fresh-identifiers (map #(fresh-identifier s-env-def %)
                                identifiers)
         fresh-ids-sub (zipmap identifiers
-                              (map list fresh-identifiers))
-        new-sub (merge-concat substitution fresh-ids-sub)
+                              ;(map list fresh-identifiers))
+                              fresh-identifiers)
+        ;new-sub (merge-concat substitution fresh-ids-sub)
+        new-sub (merge substitution fresh-ids-sub)
         s-env-new (bind the-empty-environment
                         fresh-identifiers
                         (map #(lookup % s-env-def)
-                             identifiers))]
-    (println "\nrewrite: \n" rule "\n" substitution)
-    #_(defn rewrite-h [exp rewritten]
-      (cond
-       (self-evaluating? exp)
-       exp
-       ; exp is a symbol
-       (symbol? exp)
-       (first (new-sub exp))
-       ; no more forms left in the pattern's rule
-       (empty? exp)
-       (apply list rewritten)
-       ; check for lists in the substitution, this only happens
-       ; when (a b) ... expands to nothing.
-       (and (list? (first exp))
-            (contains? new-sub (first exp)))
-       (new-sub (first exp))
-       ; expand recursively into a list 
-       (list? (first exp))
-       (recur
-        (rest exp)
-        (concat rewritten
-                (vector
-                 (rewrite-h (first exp) (vector)))))
-       ; expand the next form in the rule
-       :else 
-       (recur
-         (rest exp)
-         (concat rewritten
-                 (new-sub (first exp))))))
-    [#_(rewrite-h rule (vector))
-     (subst (?+ rule) substitution)
+                             identifiers))
+        subst-workaround (into {}
+                              (filter (fn [[_ v]] (or (nil? v) (false? v)))
+                                      new-sub))]
+    #_(println "rewrite: \n"
+             "  identifiers: " identifiers "\n"
+             "  fresh-ids-sub: " fresh-ids-sub "\n"
+             "  new-sub: " new-sub "\n"
+             "  rule:" rule "\n"
+             "  substitution: " substitution "\n"
+             "  s-env-new: " s-env-new "\n")
+    [(clojure.walk/prewalk-replace new-sub rule)
      s-env-new]))
         
 (defn transcribe [exp s-env-use]
@@ -190,6 +177,10 @@
         [transcribed-exp
          s-env-new] (rewrite rule substitution s-env-def)
         s-env-diverted (divert s-env-use s-env-new)]
+    #_(println "transcribe: \n"
+             "  transcribed-exp: " transcribed-exp "\n"
+             "  s-env-diverted: " s-env-diverted "\n")
+    ;expand-expression))
     (expand-expression transcribed-exp s-env-diverted)))
 
 (defn match [[macro-name & exp-args :as exp]
@@ -216,7 +207,10 @@
   (fn [exp s-env-use]
     (let [matcher 
           (some #(get-pattern exp
-                              %)
+                              %
+                              literals
+                              s-env-use
+                              s-env-def)
                 patterns)
 
           #_(some #(match exp

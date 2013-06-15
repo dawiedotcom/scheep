@@ -1,8 +1,9 @@
 (ns scheep.pattern-lang
   (:gen-class)
   (:use
-   [scheep.env :only [lookup]]
-   [clojure.core.unify :only [unify subst]]))
+   [clojure.core.unify :only [unify]]
+   [clojure.walk :only [prewalk]]
+   [scheep.env :only [lookup]]))
 
 ;;; Implementation for scheme's pattern language used in
 ;;; syntax-rules
@@ -50,23 +51,24 @@
 
 (defmethod map-form java.util.Collection [func form]
   ;"Applies func recursively to each symbol in form"
-  ;[func form] 
   (loop [[f & fs] form
          acc []]
     (if (nil? f)
       (apply list acc)
       (recur fs (conj acc (map-form func f))))))
-     ;(symbol? f) (recur fs (conj acc (map-form func f)))
-     ;(list? f) (recur fs (conj acc (map-form func f)))
-     ;:else (recur fs (conj acc f)))))
          
 (defn rename
   "Append suffix to each symbol in form"
   [form suffix]
   (map-form #(symbol (str % "-#" suffix)) form))
   
-(defn ?+ [pattern]
-  (map-form #(symbol (str "?" %)) pattern))
+(defn ?+ [pattern literals]
+  (defn ?add [s]
+    (if-not (literal? literals s)
+      (symbol (str "?" s))
+      s))
+      
+  (map-form ?add pattern))
      
 ;(defmulti expand (fn [p n] (class p)))
 ;
@@ -106,14 +108,19 @@
     (first-symbol (first p))))
 
 (defn expand-rule-1 [rule count-map]
-  (let [vec-rule (vec rule)]
-    (if (= (peek vec-rule) '...)
-      (let [rest-1 (pop vec-rule)
-            p  (peek rest-1)
-            rest (pop rest-1)
-            n (count-map (first-symbol p))]
-        (concat rest (expand p n)))
-      rule)))
+  #_(println "expand-rule-1: \n"
+           "  rule: " rule "\n"
+           "  (list? rule): " (list? rule) "\n")
+  (if-not (list? rule)
+    rule
+    (let [vec-rule (vec rule)]
+      (if (= (peek vec-rule) '...)
+        (let [rest-1 (pop vec-rule)
+              p  (peek rest-1)
+              rest (pop rest-1)
+              n (count-map (first-symbol p))]
+          (concat rest (expand p n)))
+        rule))))
 
 (defn expand-rule [rule count-map]
   ;(defn map-helper [elem]
@@ -121,12 +128,14 @@
   ;    (expand-rule-1 elem count-map)
   ;    elem))
   ;(map map-helper rule))
+  (if-not (list? rule)
+    rule
   (loop [[r & rs] (expand-rule-1 rule count-map)
          acc []]
     (cond
      (nil? r) (apply list acc)
      (list? r) (recur rs (conj acc (expand-rule r count-map)))
-     :else (recur rs (conj acc r)))))
+     :else (recur rs (conj acc r))))))
 
 (defn expand-pattern [pattern form]
   (let [{new-pattern :pattern
@@ -154,23 +163,23 @@
     [new-pattern new-rule]))
 
 (defn get-pattern
-  [form [pattern rule]]
-  (println "get-pattern: \n" pattern "\n" rule "\n" form)
-  (let [[new-pattern new-rule] (expand-ellipsis pattern rule form)]
-    (list (unify (?+ new-pattern) form) new-rule)))
-
-(defn sub [pattern rule form]
+  [form [pattern rule] literals s-env-use s-env-def]
+  #_(println "get-pattern: \n" pattern "\n" rule "\n" form "\n")
   (let [[new-pattern new-rule] (expand-ellipsis pattern rule form)
-        sub-map (unify (?+ new-pattern) form)]
-    ;(println sub-map)
-    (if sub-map
-      (subst (?+ new-rule) sub-map))))
-    ;(let [transcribed (subst (?+ new-rule) sub-map)]
-    ;  transcribed)))
+        ?new-pattern (?+ new-pattern literals)
+        rule-smap (zipmap
+              (distinct (flatten new-pattern))
+              (distinct (flatten ?new-pattern)))
+        pattern-smap (unify ?new-pattern form)]
+    #_(println "  ?new-pattern" ?new-pattern "\n"
+             "  uniques: " rule-smap "\n")
+    (if pattern-smap
+      (list pattern-smap
+            (clojure.walk/prewalk-replace rule-smap new-rule)))))
+
         
 
-;(defmethod pattern :default [args] (concrete-pattern args))
-(defmethod pattern :default [{form :form pattern :pattern :as args}] )
+(defmethod pattern :default [args] (concrete-pattern args))
 (defmethod concrete-pattern :default [args] nil)
 
 ;;; Pattern
