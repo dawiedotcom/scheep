@@ -2,88 +2,49 @@
   (:gen-class)
   (:use
    [clojure.core.unify :only [unify]]
-   [clojure.walk :only [prewalk]]
+   [clojure.walk :only [prewalk-replace postwalk]] 
    [scheep.env :only [lookup]]))
 
 ;;; Implementation for scheme's pattern language used in
 ;;; syntax-rules
 
 ;;; TODO
-;;;   1) pass a map instead of four params
-;;;   2) get util fns to test for literals and merge maps
-;;;   3) match elipsis
-;;;   4) match dots
+;;;   1) match dots
 
 (declare literal?
-         same-literal?
-         next-pattern
-         merge-concat)
-
-(defmulti pattern
-  (fn [{[_ pattern2] :pattern}] 
-    pattern2))
-
-(defmulti concrete-pattern
-  (fn [{[pattern1] :pattern}]
-    (class pattern1)))
-
-(defn symbol-pattern
-  [{[f & fs] :form
-    [p & ps] :pattern
-    subs :acc
-    literals :literals
-    def-env :dev-env
-    use-env :use-env
-    :as map}]
-  (if-not (literal? literals p)
-    (pattern (next-pattern map fs ps (assoc subs p (list f))))
-    (if (same-literal? def-env p use-env f)
-      (pattern (next-pattern map fs ps subs)))))
-      
-;;; Defaults
-
+         first-symbol)
 ;;; Expanding ellipsis
 
-(defmulti map-form (fn [func form] (class form)))
-(defmethod map-form :default [func form] form)
-(defmethod map-form clojure.lang.Symbol [func form]
-  (func form))
-
-(defmethod map-form java.util.Collection [func form]
-  ;"Applies func recursively to each symbol in form"
-  (loop [[f & fs] form
-         acc []]
-    (if (nil? f)
-      (apply list acc)
-      (recur fs (conj acc (map-form func f))))))
-         
+(defn map-form
+  "Like core.walk/prewalk, but only applies f to symbols"
+  [f form]
+  (postwalk #(if (symbol? %) (f %) %) form))
+                    
 (defn rename
   "Append suffix to each symbol in form"
   [form suffix]
   (map-form #(symbol (str % "-#" suffix)) form))
   
-(defn ?+ [pattern literals]
+(defn ?+
+  "Turns symbols into pattern variables if they
+   are not macro literals"
+  [pattern literals]
   (defn ?add [s]
     (if-not (literal? literals s)
       (symbol (str "?" s))
       s))
-      
   (map-form ?add pattern))
      
-;(defmulti expand (fn [p n] (class p)))
-;
-;(defmethod expand clojure.lang.Symbol [p n]
-;  (map #(symbol (str p "#" %)) (range n)))
-;  ;(rename (repeat n p)
-;
-;(defmethod expand java.util.Collection [p n]
-
-(defn expand [form n]
+(defn repeat-form
+  "Returns a list with form repeated n times, each
+   with a unique suffix appended to each symbol"
+  [form n]
   (let [forms (repeat n form)
         new-names (range n)]
     (map rename forms new-names)))
 
-(defn expanded-count [pattern n]
+(defn expanded-count
+  [pattern n]
   (if (list? pattern)
     (into {} (map vector
                   (flatten pattern) 
@@ -97,20 +58,12 @@
             p  (peek rest-1)
             rest (pop rest-1)
             n (- (count form) (count rest))]
-        {:pattern (concat rest (expand p n))
+        {:pattern (concat rest (repeat-form p n))
          :n (expanded-count p n)})
       {:pattern pattern
        :n {}})))
 
-(defn first-symbol [p]
-  (if (symbol? p)
-    p
-    (first-symbol (first p))))
-
 (defn expand-rule-1 [rule count-map]
-  #_(println "expand-rule-1: \n"
-           "  rule: " rule "\n"
-           "  (list? rule): " (list? rule) "\n")
   (if-not (list? rule)
     rule
     (let [vec-rule (vec rule)]
@@ -119,25 +72,22 @@
               p  (peek rest-1)
               rest (pop rest-1)
               n (count-map (first-symbol p))]
-          (concat rest (expand p n)))
+          (apply list (concat rest (repeat-form p n))))
         rule))))
 
-(defn expand-rule [rule count-map]
-  ;(defn map-helper [elem]
-  ;  (if (sequential? elem)
-  ;    (expand-rule-1 elem count-map)
-  ;    elem))
-  ;(map map-helper rule))
-  (if-not (list? rule)
-    rule
-  (loop [[r & rs] (expand-rule-1 rule count-map)
-         acc []]
-    (cond
-     (nil? r) (apply list acc)
-     (list? r) (recur rs (conj acc (expand-rule r count-map)))
-     :else (recur rs (conj acc r))))))
+(defn expand-rule
+  "Replace ellipsis in a rewrite rule by the
+   the number of forms given in count-map"
+  [rule count-map]
+  (postwalk
+   #(if (list? %) (expand-rule-1 % count-map) %)
+   rule))
 
-(defn expand-pattern [pattern form]
+(defn expand-pattern
+  "Replace ellipsis in a pattern so that the pattern's
+   tree structure matches the given form's. The number
+   that each symbol is repeated is counted in :n"
+  [pattern form]
   (let [{new-pattern :pattern
          counts :n} (expand-pattern-1 pattern form)]
     (loop [[p & ps] new-pattern
@@ -157,107 +107,35 @@
        :else
        (recur ps fs count-map (conj acc p))))))
 
-(defn expand-ellipsis [pattern rule form]
+(defn expand-ellipsis
+  "Replace the ellipsis in a given pattern and rule
+   according to the tree structure of form."
+  [pattern rule form]
   (let [[new-pattern count-map] (expand-pattern pattern form)
         new-rule (expand-rule rule count-map)]
     [new-pattern new-rule]))
 
-(defn get-pattern
-  [form [pattern rule] literals s-env-use s-env-def]
-  #_(println "get-pattern: \n" pattern "\n" rule "\n" form "\n")
+(defn match
+  "Returns a substitution map and rule for a given pattern, rule
+   and form"
+  [form [pattern rule] literals]
   (let [[new-pattern new-rule] (expand-ellipsis pattern rule form)
         ?new-pattern (?+ new-pattern literals)
         rule-smap (zipmap
               (distinct (flatten new-pattern))
               (distinct (flatten ?new-pattern)))
         pattern-smap (unify ?new-pattern form)]
-    #_(println "  ?new-pattern" ?new-pattern "\n"
-             "  uniques: " rule-smap "\n")
     (if pattern-smap
       (list pattern-smap
-            (clojure.walk/prewalk-replace rule-smap new-rule)))))
-
-        
-
-(defmethod pattern :default [args] (concrete-pattern args))
-(defmethod concrete-pattern :default [args] nil)
-
-;;; Pattern
-
-(defmethod pattern
-  '...
-  [{form :form [p] :pattern subs :acc :as arg-map}]
-  "Match the rest of the forms against the first pattern"
-  (if-not (or (list? form) (nil? form))
-    (throw (ex-info "Ill formed special form:" {:cause (:exp arg-map)})))
-  (if (empty? form)
-    (merge-concat subs
-                  (if (list? p)
-                    ; if p is a list and form is empty, all the 
-                    ; patterns in p should expand to nothing.
-                    (apply merge
-                           (cons {p nil}
-                                 (map (fn [i] {i nil}) p)))
-                    ; p is an identifier, should expand to nothing.
-                    {p nil '... nil}))
-    ;; all the forms in forms should be matched by p
-    (apply merge-concat
-           (cons subs 
-                 (map #(pattern
-                        (next-pattern arg-map (list %) (list p) {'... nil}))
-                      form)))))
-
-;;; Concrete pattern
-
-(defmethod concrete-pattern
-  nil
-  [{form :form subs :acc :as map}]
-  "The terminal case"
-  (if (empty? form) subs))
-
-(defmethod concrete-pattern
-  clojure.lang.Symbol
-  [map]
-  "first pattern is a symbol, but not ... or ."
-  (symbol-pattern map))
-
-(defmethod concrete-pattern
-  java.util.Collection
-  [{form :form [p & ps] :pattern subs :acc :as map}]
-  "first pattern is a list, match recursively into the tree"
-  (if-not (list? form)
-    (throw (ex-info "Ill formed special form:" {:cause form})))
-  (let [[f & fs] form
-        recur-map (next-pattern map f p {})
-        merged (merge-concat subs (pattern recur-map))]
-    (if merged
-      (pattern (next-pattern map fs ps merged)))))
+            (prewalk-replace rule-smap new-rule)))))
 
 ;;; Helpers
-
-(defn next-pattern [map form pattern acc]
-  "Returns a new argememt map with replaced vals for
-   form, pattern and acc"
-  (assoc map :form form :pattern pattern :acc acc))
 
 (defn literal? [literals p]
   (let [res (not (nil? (some #{p} literals)))]
     res))
   
-(defn same-literal? [s-env-def p s-env-use f]
-  (let [res (= (lookup p s-env-def)
-               (lookup f s-env-use))]
-    res))
-
-(defn merge-concat [& maps]
-  ;; assuming each map has only lists as values, this
-  ;; does the same as merge, but concats vals that
-  ;; correspond to the same key.
-  (defn reducer [m1 m2]
-    ;(println "\n" m1 "\n" m2 "\n")
-    (if (and m1 m2)
-      (let [ks (concat (keys m1) (keys m2))
-            vs (map #(concat (m1 %) (m2 %)) ks)]
-        (zipmap ks vs))))
-  (reduce reducer maps))
-
+(defn first-symbol [p]
+  (if (symbol? p)
+    p
+    (first-symbol (first p))))

@@ -3,45 +3,6 @@
         scheep.macro
         [scheep.core :only [scheme-eval setup-environment]]))
 
-(deftest test-match
-  (testing "Match with exp and pattern of the same length"
-    (let [pattern '((_ a b) (or a b))
-          [subs rule] (match '(or2 one two)
-                             pattern
-                             '()
-                             '()
-                             '())]
-      (is (and (= subs '{a (one), b (two), or2 (or2)})
-               (= rule '(or a b))))
-      (is (= (match '(or2 one two three)
-                    pattern
-                    '()
-                    '()
-                    '())
-             nil))))
-
-  (testing "basic pattern with elipsis"
-    (let [pattern '((_ a b ...) (or a b))]
-      (let [[subs _]
-            (match '(or one two three) pattern '() '() '())]
-        (is (= subs '{a (one), b (two three), ... (), or (or)})))
-
-      (let [[subs _]
-            (match '(or one two) pattern '() '() '())]
-        (is (= subs '{a (one), b (two), ... (), or (or)})))
-
-      (let [[subs _]
-            (match '(or one) pattern '() '() '())]
-        ;(is (= subs '{a (one), b ()})))))
-        (is (= subs '{a (one), b (), ... (), or (or)})))))
-
-  (testing "let like pattern"
-    (let [pattern '((_ ((vars vals) ...)) (or vars vals))
-          form '(something ((a 1) (b 2) (c 3)))
-          [subs rule] (match form pattern '() '() '())]
-      (is (= subs '{vars (a b c) vals (1 2 3) ... () something (something)}))
-      (is (= rule '(or vars vals))))))
-
 (deftest test-expand
   (testing "expanding let"
     (let [env (setup-environment)]

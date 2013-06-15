@@ -2,7 +2,8 @@
   (:gen-class)
   (:use
    [clojure.core.unify :only [subst]]
-   [scheep.pattern-lang :only [?+ get-pattern pattern merge-concat]]
+   [clojure.walk :only [prewalk-replace]]
+   [scheep.pattern-lang :only [match]]
    [scheep.env :only [the-empty-environment
                       the-empty-environment?
                       lookup
@@ -136,36 +137,20 @@
 
 (defn rewrite [rule substitution s-env-def]
   (defn get-ids []
-    (let [rule- (if (list? rule) rule (list rule))
+    (let [rule- (if (list? rule) rule (list rule)) ; flatten on a symbol returns ()
           unique-symbols (distinct (flatten rule-))
           pattern-vars (keys substitution)]
-      #_(println "get-ids: \n"
-               "  unique-symbols: " unique-symbols "\n")
       (remove #(some #{%} pattern-vars)
               unique-symbols)))
   (let [identifiers (doall (get-ids))
-        fresh-identifiers (map #(fresh-identifier s-env-def %)
-                               identifiers)
-        fresh-ids-sub (zipmap identifiers
-                              ;(map list fresh-identifiers))
-                              fresh-identifiers)
-        ;new-sub (merge-concat substitution fresh-ids-sub)
+        fresh-identifiers (map #(fresh-identifier s-env-def %) identifiers)
+        fresh-ids-sub (zipmap identifiers fresh-identifiers)
         new-sub (merge substitution fresh-ids-sub)
         s-env-new (bind the-empty-environment
                         fresh-identifiers
                         (map #(lookup % s-env-def)
-                             identifiers))
-        subst-workaround (into {}
-                              (filter (fn [[_ v]] (or (nil? v) (false? v)))
-                                      new-sub))]
-    #_(println "rewrite: \n"
-             "  identifiers: " identifiers "\n"
-             "  fresh-ids-sub: " fresh-ids-sub "\n"
-             "  new-sub: " new-sub "\n"
-             "  rule:" rule "\n"
-             "  substitution: " substitution "\n"
-             "  s-env-new: " s-env-new "\n")
-    [(clojure.walk/prewalk-replace new-sub rule)
+                             identifiers))]
+    [(prewalk-replace new-sub rule)
      s-env-new]))
         
 (defn transcribe [exp s-env-use]
@@ -177,27 +162,8 @@
         [transcribed-exp
          s-env-new] (rewrite rule substitution s-env-def)
         s-env-diverted (divert s-env-use s-env-new)]
-    #_(println "transcribe: \n"
-             "  transcribed-exp: " transcribed-exp "\n"
-             "  s-env-diverted: " s-env-diverted "\n")
-    ;expand-expression))
     (expand-expression transcribed-exp s-env-diverted)))
 
-(defn match [[macro-name & exp-args :as exp]
-             [[_ & pattern-vars] rewrite-rule]
-             literals
-             s-env-use
-             s-env-def]
-  (let [subs (pattern {:form exp-args
-                       :exp exp
-                       :pattern pattern-vars
-                       :literals literals
-                       :use-env s-env-use
-                       :def-env s-env-def
-                       :acc {macro-name (list macro-name)}})]
-    (if subs
-      (list subs rewrite-rule))))
-  
 ;;;; Constructor for transformer functions 
 
 (defn syntax-rules [[_ literals & patterns] s-env-def]
@@ -206,18 +172,7 @@
   ;     (s-env-def substitution rewrite-rule)
   (fn [exp s-env-use]
     (let [matcher 
-          (some #(get-pattern exp
-                              %
-                              literals
-                              s-env-use
-                              s-env-def)
-                patterns)
-
-          #_(some #(match exp
-                        %
-                        literals
-                        s-env-use
-                        s-env-def)
+          (some #(match exp % literals)
                 patterns)]
       (if matcher
         (conj matcher s-env-def)
