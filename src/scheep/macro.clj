@@ -2,7 +2,7 @@
   (:gen-class)
   (:use
    [clojure.core.unify :only [subst]]
-   [clojure.walk :only [prewalk-replace]]
+   [clojure.walk :only [postwalk prewalk-replace]]
    [scheep.pattern-lang :only [match]]
    [scheep.primitives :only [pair?]]
    [scheep.env :only [the-empty-environment
@@ -18,9 +18,6 @@
 
 ;;;; Macros ;;;;
 ;; A very direct implementation of 'Macros That work' [1].
-;; TODO:
-;;  * define-syntax and other variations of let-syntax
-;;  * all variations of the pattern lanuage for syntax-rules
 ;;
 ;; [1]: Clinger, Rees. 'Macros that work'
 ;;      http://dl.acm.org/citation.cfm?id=99607
@@ -30,8 +27,18 @@
 (defn transcription? [id]
   (fn? id))
 
+(defn lookup-transcription [symbol s-env]
+  (let [denotation (lookup symbol s-env)]
+    (if (and (symbol? denotation)
+             (not= denotation symbol))
+      (lookup-transcription denotation s-env)
+      denotation)))
+  
 (defn macro-call? [exp s-env]
-  (transcription? (lookup (first exp) s-env)))
+  (-> exp
+      (first ,,,)
+      (lookup-transcription ,,, s-env)
+      (transcription? ,,,)))
 
 (defn macro-definition? [[id]]
   (or (= id 'let-syntax)
@@ -87,7 +94,6 @@
   (cons 'lambda (cons params body)))
 
 (defn expand-procedure [[_ args & body] s-env]
-  #_(println "expand-procedure: (lambda " args body ")")
   (if (the-empty-environment? s-env)
     (apply make-lambda (cons args body))
     (let [fresh-args (map #(fresh-identifier s-env %) args)
@@ -106,7 +112,6 @@
         s-rule-clauses (map (fn [[_ c]] c) bindings)
         transformers (map #(syntax-rules % s-env) s-rule-clauses)
         new-s-env (bind s-env macro-names transformers)]
-    ;(pprint bindings)
     (expand-expression (first body) new-s-env)))
 
 (defn define-syntax [[_ name transformer-spec] s-env]
@@ -116,10 +121,9 @@
 ;;;; Macro expansion 
         
 (defn expand-expression [exp s-env]
-  #_(println "expand-expression: " exp "\n")
   (cond
    (self-evaluating? exp) exp
-   (pair? exp) exp
+   (pair? exp) (seq exp)
    (symbol? exp) (lookup exp s-env)
    (procedure-abstraction? exp s-env) (expand-procedure exp s-env)
    (let-syntax? exp) (expand-let-syntax exp s-env)
@@ -139,7 +143,8 @@
 
 (defn rewrite [rule substitution s-env-def]
   (defn get-ids []
-    (let [rule- (if (list? rule) rule (list rule)) ; flatten on a symbol returns ()
+    (let [; flatten on a symbol returns ()
+          rule- (if (list? rule) rule (list rule)) 
           unique-symbols (distinct (flatten rule-))
           pattern-vars (keys substitution)]
       (remove #(some #{%} pattern-vars)
@@ -151,13 +156,20 @@
         s-env-new (bind the-empty-environment
                         fresh-identifiers
                         (map #(lookup % s-env-def)
-                             identifiers))]
-    [(prewalk-replace new-sub rule)
+                             identifiers))
+        replaced (prewalk-replace new-sub rule)
+        dots-removed (postwalk #(if (and (list? %)
+                                         (= (lookup (first %) s-env-new) '.))
+                                  (cons (second %) (nth % 2))
+                                  %)
+                               replaced)]
+    [dots-removed
      s-env-new]))
         
 (defn transcribe [exp s-env-use]
   (let [macro-name (first exp)
-        match (lookup macro-name s-env-use)
+        match (lookup-transcription (first exp) s-env-use)
+                                        ;(lookup macro-name s-env-use)
         [s-env-def
          substitution
          rule] (match exp s-env-use)

@@ -143,14 +143,14 @@
            (<:> ->peculiar-symbol)
            ->number
            ->symbol
-           (<:> ->dotted-list)
-           ->list
            string-lit
            ->boolean
            ->quote
            ->quasiquote
            (<:> ->unquote-splicing)
-           ->unquote)))
+           ->unquote
+           (<:> ->list)
+           ->dotted-list)))
 
 (def scheme-expr+
   (many1 scheme-expr))
