@@ -4,6 +4,7 @@
    [clojure.core.unify :only [subst]]
    [clojure.walk :only [prewalk-replace]]
    [scheep.pattern-lang :only [match]]
+   [scheep.primitives :only [pair?]]
    [scheep.env :only [the-empty-environment
                       the-empty-environment?
                       lookup
@@ -118,6 +119,7 @@
   #_(println "expand-expression: " exp "\n")
   (cond
    (self-evaluating? exp) exp
+   (pair? exp) exp
    (symbol? exp) (lookup exp s-env)
    (procedure-abstraction? exp s-env) (expand-procedure exp s-env)
    (let-syntax? exp) (expand-let-syntax exp s-env)

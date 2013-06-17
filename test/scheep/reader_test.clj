@@ -1,7 +1,6 @@
 (ns scheep.reader-test
   (:use clojure.test 
-        scheep.reader))
-
+        scheep.reader)) 
 
 (deftest test-scheme-read-string
   (testing "numbers"
@@ -22,7 +21,8 @@
     (is (= (scheme-read-string "(a (b c))") '(a (b c))))
     (is (= (scheme-read-string "(a (b c) d)") '(a (b c) d))))
   (testing "dotted-lists"
-    (is (= (scheme-read-string "(a . b)") '(a b))))
+    (is (= (scheme-read-string "(a . (b))") '(a b)))
+    (is (= (str (scheme-read-string "(a . b)")) "(a . b)")))
   (testing "comments with ;"
     (is (= (scheme-read-string "(a   ; a as first\n b \n c)") '(a b c))))
   (testing "peculiar identifiers"

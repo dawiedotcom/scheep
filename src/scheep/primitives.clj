@@ -30,12 +30,33 @@
    (primitive-procedure-names)
    (primitive-procedure-objects)))
 
+;;; Cons pairs
+
+;(deftype pair [car cdr] clojure.lang.Seqable (seq [this] (list car cdr)))
+(deftype pair [car cdr]
+  clojure.lang.Seqable
+  (seq [this] (list car cdr))
+  Object
+  (toString [this] (str "(" car " . " cdr ")")))
+
+(defn pair? [p]
+  (instance? pair p))
+
+(defn make-dotted-list [f [car* cdr]]
+  (let [car (if (= (count car*) 1)
+              (first car*)
+              (apply list car*))]
+    (f 
+     (if (list? cdr)
+       (conj cdr car)
+       (pair. car cdr)))))
+
 ;;; A map of base scheme procedures that are implemented in
 ;;; terms of clojure functions.
 
 (def primitive-procedures
-  {'car first
-   'cdr rest
+  {'car #(if (pair? %) (.car %) (first %))
+   'cdr #(if (pair? %) (.cdr %) (rest %))
    'null? empty?
    '+ +
    '- -

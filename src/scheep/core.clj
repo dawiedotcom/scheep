@@ -10,7 +10,8 @@
    [scheep.macro :only [expand]]
    [scheep.primitives :only [primitive-procedure?
                              apply-primitive-procedure
-                             the-primitive-environment]]))
+                             the-primitive-environment
+                             pair?]]))
 
 ;;;; Forward declarations
 
@@ -148,6 +149,8 @@
    of evaluating the scheme expression exp in the environent
    env"
   [exp env]
+  (if (pair? exp)
+    (throw (ex-info "Combination must be a proper list: " {:cause exp})))
   (let [expanded-exp (expand exp)]
     (cond 
       (self-evaluating? expanded-exp) (fn [] expanded-exp)
@@ -209,7 +212,9 @@
           (let [output (scheme-eval input-form global-env)]
             (print-output output-prompt output))
           (catch clojure.lang.ExceptionInfo ex 
-            (println ";Error: " (.getMessage ex) (:cause (ex-data ex)))))
+            (println (str ";Error: "
+                          (.getMessage ex)
+                          (:cause (ex-data ex))))))
         (recur global-env))
       (println "\nbye."))))
     

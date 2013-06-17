@@ -1,10 +1,10 @@
 (ns scheep.reader
   (:gen-class)
   (:use
-   [clojure.core :exclude [read-string]]
+   [scheep.primitives :only [make-dotted-list]]
    [blancas.kern.core :only [<|> <:> <+> <*> >>= >> <<
-                             alpha-num one-of* none-of* 
-                             many many1 digit white-space 
+                             alpha-num letter one-of* none-of* 
+                             many many1 digit white-space end-by
                              skip-many skip-ws return fwd sym* optional
                              new-line* print-error parse token* 
                              not-followed-by parse-file]]
@@ -47,19 +47,28 @@
       (:value parsed)
       (print-error parsed))))
   
+;;; Spaces
+
+(def spaces (many white-space))
+
 ;;; Symbols
 
-(def special-char=
-  (one-of* "!$%&*+-./:<=>?@^_~"))
+(def special-initial=
+  (one-of* "!$%&*/:<=>?^_~"))
+(def special-subsequent=
+  (one-of* "+-.@"))
+(def initial= (<|> letter special-initial=))
+(def subsequent= (<|> initial= digit special-subsequent=))
 
-(def symbol= (<+> (many1 (<|> alpha-num special-char=))))
+(def symbol= (<|> (<:> (<+> initial= (many1 subsequent=)))
+                  initial=))
 
 (def peculiar-symbol= (<|> (token* "...")
                            (token* "+")
                            (<< (token* "-")
                                (not-followed-by digit))))
 
-(def ->symbol (>>= symbol= #(return (symbol %))))
+(def ->symbol (>>= symbol= #(return (symbol (str %)))))
 
 (def ->peculiar-symbol (>>= peculiar-symbol= #(return (symbol %))))
 
@@ -84,17 +93,20 @@
 ;; TODO: At the moment a dotted pair will just be a list
 ;;       with two elements, which will probably not preserve the
 ;;       semantics of cons, car and cdr.
-(def dotted-pair-elms= (<*> scheme-expr
-                            (>> (skip-ws (sym* \.))
-                                white-space
-                                scheme-expr)))
+(def dotted-list-elems= (<*> (end-by spaces scheme-expr)
+                             (>> (sym* \.)
+                                 scheme-expr)))
 
-(def list= (parens (<|> (<:> dotted-pair-elms=)
-                        list-elems=)))
+(def list= (parens list-elems=))
+(def dotted-list= (parens dotted-list-elems=))
                    
 (def ->list
   (>>= list=
        #(return (apply list %))))
+
+(def ->dotted-list
+  (>>= dotted-list=
+       #(make-dotted-list return %)))
 
 ;;; Quote, quasiquote, unquote and unquote-splicing
 
@@ -115,8 +127,6 @@
 
 ;;; Comment
 
-(def spaces (many white-space))
-
 (def line-comment (<*> (optional spaces)
                        (sym* \;)
                        (many (none-of* "\n"))
@@ -129,10 +139,12 @@
 
 (def scheme-expr
   (>> (skip-many scheme-ws)
-      (<|> ->list
+      (<|> 
            (<:> ->peculiar-symbol)
            ->number
            ->symbol
+           (<:> ->dotted-list)
+           ->list
            string-lit
            ->boolean
            ->quote
