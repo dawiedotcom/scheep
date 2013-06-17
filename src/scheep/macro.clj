@@ -157,12 +157,18 @@
                         fresh-identifiers
                         (map #(lookup % s-env-def)
                              identifiers))
-        replaced (prewalk-replace new-sub rule)
-        dots-removed (postwalk #(if (and (list? %)
-                                         (= (lookup (first %) s-env-new) '.))
-                                  (cons (second %) (nth % 2))
-                                  %)
-                               replaced)]
+        dots-removed (postwalk
+                      #(cond
+                        ; Cons dots
+                        (and (list? %)
+                             (= (lookup (first %) s-env-new) '.))
+                        (cons (second %) (nth % 2))
+                        ; Replace the rule variable with the pattern
+                        (contains? new-sub %)
+                        (new-sub %)
+                        ; Do nothing
+                        :else %)
+                      rule)]
     [dots-removed
      s-env-new]))
         
