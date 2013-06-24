@@ -1,6 +1,7 @@
 (ns scheep.core-test
   (:use clojure.test 
-        scheep.core))
+        scheep.core
+        scheep.reader))
 
 (deftest test-self-evaluating?
   (testing "Strings are self evaluating"
@@ -229,3 +230,38 @@
             the-global-environment)
            0))))
 
+(deftest test-lambda-variations
+  (testing "define with one . args"
+    (is (= (scheme-eval
+            (scheme-read-string
+             "(begin (define (foo . args) args) (foo 1 2 3))")
+            the-global-environment)
+           '(1 2 3))))
+  (testing "define with mixed args"
+    (is (= (scheme-eval
+            (scheme-read-string
+             "(begin (define (foo x . args) args) (foo 1 2 3))")
+             the-global-environment)
+           '(2 3)))
+    (is (= (scheme-eval
+            (scheme-read-string
+             "(begin (define (foo x . args) x) (foo 1 2 3))")
+            the-global-environment)
+           1)))
+  (testing "lambda with . args"
+    (is (= (scheme-eval
+            (scheme-read-string
+             "(begin (define foo (lambda (x . args) args)) (foo 1 2 3))")
+            the-global-environment)
+           '(2 3)))
+    (is (= (scheme-eval
+            (scheme-read-string
+             "(begin (define foo (lambda (x . args) x)) (foo 1 2 3))")
+            the-global-environment)
+           1)))
+   (testing "lambda with symbol as args"
+    (is (= (scheme-eval
+            (scheme-read-string
+             "(begin (define foo (lambda args args)) (foo 1 2 3))")
+            the-global-environment)
+           '(1 2 3)))))          

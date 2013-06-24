@@ -11,7 +11,8 @@
    [scheep.primitives :only [primitive-procedure?
                              apply-primitive-procedure
                              the-primitive-environment
-                             pair?]]))
+                             pair?
+                             make-pair]]))
 
 ;;;; Forward declarations
 
@@ -22,6 +23,7 @@
          scheme-true?
          list-of-values
          the-global-environment
+         name-clause->params
          make-compound-procedure)
          
 ;;;; Expression Types ;;;;
@@ -60,9 +62,10 @@
   
 ;;;; Definitions
 (defn procedure-definition? [variable]
-  (list? variable))
-(defn procedure-arguments [[_ & args]] args)
-(defn procedure-name [[name]] name)
+  (or (pair? variable) (list? variable)))
+    
+(defn procedure-name [name-clause]
+  (first (flatten (seq name-clause))))
                                    
 (defmethod eval-form 'define [[_ variable value] env]
   (let [name-clause variable]
@@ -71,7 +74,7 @@
         env
         (procedure-name name-clause)
         (make-compound-procedure      
-         (procedure-arguments name-clause)
+         (name-clause->params variable)
          (list value)
          env))
       (define-variable!
@@ -130,13 +133,57 @@
 ;;;; Compound procedures
 
 (defrecord compound-procedure [parameters body env])
-(defn make-compound-procedure [params body env]
-  ; this will have to do since we cannot declare record names..
-  (if-not (= (distinct params) params)
-    (throw (ex-info "Procedure parameters must be unique:" 
-                    {:cause (list 'lambda params '...)})))
-  (compound-procedure. params body env))
 (defn compound-procedure? [p] (instance? compound-procedure p))
+
+(defn name-clause->params
+  "Converts a scheme name clause to a parameter clause"
+  [name-clause]
+  (cond
+   (list? name-clause) (rest name-clause)
+   (pair? name-clause) (let [car (.car name-clause)]
+                         (if (list? car)
+                           (make-pair (rest car)
+                                      (.cdr name-clause))
+                           (make-pair '() (.cdr name-clause))))
+   (symbol? name-clause) (make-pair '() name-clause)
+   :else (throw
+          (ex-info
+           "Compound procedure name clause must be list, pair or symbol"
+           {:cause name-clause}))))
+
+(defn parameter-list
+  "Returns a list of the symbol names in a procedure's arguments"
+  [proc]
+  (let [parameters (.parameters proc)]
+    (cond (symbol? parameters) (list parameters)
+          (pair? parameters) (if (empty? (.car parameters))
+                               (list (.cdr parameters))
+                               (flatten (seq parameters)))
+          :else parameters)))
+
+(defn argument-list
+  "Returns the argument values in the same form as the argument
+   list in a procedures definition"
+  [proc args]
+  (let [parameters (.parameters proc)]
+    (cond
+     ;; only one args that should be bound to the list of args
+     (symbol? parameters) (list args) 
+     (pair? parameters) (let [n (count (.car parameters))]
+                          (apply
+                           list
+                           (concat (take n args)
+                                   (list (nthnext args n)))))
+     :else args)))
+                              
+(defn make-compound-procedure [param-clause body env]
+  (let [params (if (symbol? param-clause)
+                 (list param-clause)
+                 (flatten (seq param-clause)))]
+    (if-not (= (distinct params) params)
+      (throw (ex-info "Procedure parameters must be unique:" 
+                      {:cause (list 'lambda params '...)}))))
+  (compound-procedure. param-clause body env))
 
 ;;;; Eval ;;;;
     
@@ -168,17 +215,23 @@
 (defn scheme-apply
   "Applies a scheme procedure to a list of arguments"
   [procedure arguments]
-  (cond (primitive-procedure? procedure) (apply-primitive-procedure
-                                          procedure
-                                          arguments)
-        (compound-procedure? procedure) (eval-sequence
-                                         (.body procedure)
-                                         (extend-environment
-                                          (.env procedure)
-                                          (.parameters procedure)
-                                          arguments))
-       :else (throw
-               (Exception. (str "Unknown procedure type " procedure "\n")))))
+  (cond
+   ;; primitives
+   (primitive-procedure? procedure)
+   (apply-primitive-procedure
+    procedure
+    arguments)
+   ;; compound procedures
+   (compound-procedure? procedure)
+   (eval-sequence
+    (.body procedure)
+    (extend-environment
+     (.env procedure)
+     (parameter-list procedure)
+     (argument-list procedure arguments)))
+   ;; nothing
+   :else (throw
+          (Exception. (str "Unknown procedure type " procedure "\n")))))
         
 ;;;; REPL ;;;;
 

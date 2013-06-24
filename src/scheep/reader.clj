@@ -1,7 +1,7 @@
 (ns scheep.reader
   (:gen-class)
   (:use
-   [scheep.primitives :only [make-dotted-list]]
+   [scheep.primitives :only [make-pair]]
    [blancas.kern.core :only [<|> <:> <+> <*> >>= >> <<
                              alpha-num letter one-of* none-of* 
                              many many1 digit white-space end-by
@@ -106,7 +106,7 @@
 
 (def ->dotted-list
   (>>= dotted-list=
-       #(make-dotted-list return %)))
+       #(make-pair return (apply list (first %)) (second %))))
 
 ;;; Quote, quasiquote, unquote and unquote-splicing
 

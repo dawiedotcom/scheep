@@ -4,7 +4,8 @@
    [clojure.core.unify :only [subst]]
    [clojure.walk :only [postwalk prewalk-replace]]
    [scheep.pattern-lang :only [match]]
-   [scheep.primitives :only [pair?]]
+   [scheep.primitives :only [pair?
+                             make-pair]]
    [scheep.env :only [the-empty-environment
                       the-empty-environment?
                       lookup
@@ -93,11 +94,25 @@
 (defn make-lambda [params & body]
   (cons 'lambda (cons params body)))
 
+(defn make-fresh-args [args env]
+  (defn fresh-list [lst]
+    (map #(fresh-identifier env %) lst))
+  (cond
+   (symbol? args) (fresh-identifier env args)
+   (pair? args) (make-pair (fresh-list (.car args)) (.cdr args))
+   :else (fresh-list args)))
+
+(defn arg-list [args]
+  (cond 
+   (symbol? args) (list args)
+   (pair? args) (flatten (seq args))
+   :else args))
+
 (defn expand-procedure [[_ args & body] s-env]
   (if (the-empty-environment? s-env)
     (apply make-lambda (cons args body))
-    (let [fresh-args (map #(fresh-identifier s-env %) args)
-          body-s-env (bind s-env args fresh-args)
+    (let [fresh-args (make-fresh-args args s-env)
+          body-s-env (bind s-env (arg-list args) (arg-list fresh-args))
           expanded-body (expand-expression-list body body-s-env)]
       (apply
        make-lambda 
@@ -123,7 +138,7 @@
 (defn expand-expression [exp s-env]
   (cond
    (self-evaluating? exp) exp
-   (pair? exp) (seq exp)
+   (pair? exp) exp 
    (symbol? exp) (lookup exp s-env)
    (procedure-abstraction? exp s-env) (expand-procedure exp s-env)
    (let-syntax? exp) (expand-let-syntax exp s-env)

@@ -22,7 +22,8 @@
     (is (= (scheme-read-string "(a (b c) d)") '(a (b c) d))))
   (testing "dotted-lists"
     (is (= (scheme-read-string "(a . (b))") '(a b)))
-    (is (= (str (scheme-read-string "(a . b)")) "(a . b)")))
+    (is (= (scheme-read-string "(a c . (b))") '(a c b)))
+    (is (= (str (scheme-read-string "(a . b)")) "((a) . b)")))
   (testing "comments with ;"
     (is (= (scheme-read-string "(a   ; a as first\n b \n c)") '(a b c))))
   (testing "peculiar identifiers"

@@ -42,16 +42,15 @@
 (defn pair? [p]
   (instance? Pair p))
 
-(defn make-dotted-list [f [car* cdr]]
-  (let [car (if (= (count car*) 1)
-              (first car*)
-              (apply list car*))]
-    (f 
-     (if (list? cdr)
-       (conj cdr car)
-       (Pair. car cdr)))))
+(defn make-pair
+  ([car cdr]
+   (make-pair identity car cdr))
+  ([f car cdr]
+     (f 
+      (if (list? cdr)
+        (apply list (concat car cdr))
+        (Pair. car cdr)))))
 
-(defn make-pair [car cdr] (Pair. car cdr))
 ;;; A map of base scheme procedures that are implemented in
 ;;; terms of clojure functions.
 
